@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="dexgram_about_intro_title">A secure chat platform built for modern privacy</string>
+  <string name="dexgram_about_intro_body">DexGram is designed as a security-first messaging platform with advanced protection by default. It combines an intuitive interface with powerful privacy controls to help users communicate safely.</string>
+  <string name="dexgram_about_security_title">YubiKey-first data protection</string>
+  <string name="dexgram_about_security_body">DexGram is built around secure local data protection, with support for YubiKey-enforced database access and strong passphrase-based encryption. Users are guided to secure their data from the beginning.</string>
+  <string name="dexgram_about_duress_title">Duress protection and emergency access model</string>
+  <string name="dexgram_about_duress_body">DexGram includes duress password capabilities to support high-risk scenarios. This adds an extra layer of operational security for users who need stronger personal safety controls.</string>
+  <string name="dexgram_about_protocol_title">Dexgram protocol foundation</string>
+  <string name="dexgram_about_protocol_body">DexGram is based on the Dexgram protocol architecture, focusing on metadata minimization, decentralized communication, and strong end-to-end encryption principles.</string>
+  <string name="dexgram_about_wallet_title">Integrated swapping wallet and bot-ready experience</string>
+  <string name="dexgram_about_wallet_body">DexGram includes a multi-chain wallet experience with swap-oriented workflows and bot-friendly interaction patterns in a simple GUI, making secure communication and digital utility available in one app.</string>
+  <string name="dexgram_about_vault_title">Vault with per-file protection</string>
+  <string name="dexgram_about_vault_body">DexGram Vault protects important user data with encrypted storage workflows, including per-file protection concepts for stronger compartmentalization and privacy.</string>
+  <string name="dexgram_about_privacy_title">Military-grade encryption mindset</string>
+  <string name="dexgram_about_privacy_body">DexGram applies a military-grade security mindset across messaging, storage, and identity flows, with voice scrambling, private profile controls, and strict local-first data handling.</string></resources>
