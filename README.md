@@ -161,6 +161,17 @@ Recommended workflow:
 4. Run the relevant Gradle test or build task.
 5. Check `git status --short` and `git diff` before committing.
 
+## Roadmap
+
+These are the next areas of work for DEXGRAM:
+
+- Improve **Vault** and synchronization.
+- Publish the **Vault server source code**.
+- Work on the **Android VPN** as a separate project.
+- Improve **voice scrambling**.
+- Work on the **iOS version**.
+- Work on the **Desktop version** later.
+
 ## Temporary Files and Build Output
 
 Build artifacts, IDE state, native outputs, logs, and editor temporary files are ignored by `.gitignore`. Generated outputs should stay out of commits unless they are intentionally versioned source assets.
