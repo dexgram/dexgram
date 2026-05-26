@@ -1,10 +1,51 @@
-# Android App Development
+# DEXGRAM
 
-This is a guide to contributing to the develop of the SimpleX android and desktop apps.
+DEXGRAM is a privacy-first messaging and wallet app built for clean, secure communication without phone numbers, address-book uploads, or unnecessary personal data collection.
 
-## Project Overview
+It combines end-to-end encrypted messaging, unlinkable contact identities, encrypted file sharing, voice and video calls, and a non-custodial DeFi wallet in one open-source client. The project is based on proven open-source security foundations and keeps keys on the user's device.
 
-This is the **Kotlin Multiplatform (KMP)** mobile and desktop client for SimpleX Chat, sharing code between Android and Desktop (JVM) platforms using Compose Multiplatform for UI.
+## What DEXGRAM Does
+
+- **Private messaging by default** - one-to-one and group conversations with end-to-end encryption.
+- **Unique identity per contact** - each conversation can use a fresh identity to reduce social graph linking.
+- **Minimal metadata exposure** - no phone number requirement, no contact discovery, and no central user directory.
+- **Encrypted files and media** - secure attachments, images, voice messages, and file transfers.
+- **Voice and video calls** - real-time calls integrated into the same private chat experience.
+- **Private and public profiles** - private profiles for unlinkable conversations, public profiles for teams, organizations, and official channels.
+- **Non-custodial wallet** - users control their own keys and funds.
+- **DeFi swaps** - decentralized token swaps through smart-contract-based protocols and DEX integrations.
+- **Local security controls** - app lock, encrypted local storage, and optional YubiKey-backed database protection.
+- **Open-source transparency** - the code can be inspected, built, and verified by the community.
+
+## Security Model
+
+DEXGRAM is designed around the idea that privacy must cover both message content and relationship metadata.
+
+- Messages and files are end-to-end encrypted.
+- Contact identities are not globally reused by default.
+- Private profiles help prevent linking contacts together.
+- Wallet keys remain on-device and are not held by DEXGRAM.
+- Local data can be protected with platform security features and hardware-backed options.
+- The app builds on mature cryptographic and messaging foundations, including SimpleX Chat concepts and wallet infrastructure inspired by established non-custodial tooling.
+
+## Platforms
+
+This repository contains the Kotlin Multiplatform client:
+
+- **Android** app module
+- **Desktop JVM** app module
+- Shared Kotlin and Compose Multiplatform code in `common/`
+
+The project uses Compose Multiplatform for UI and platform-specific implementations for Android and Desktop features.
+
+## Repository Structure
+
+- `common/` - shared application code, Compose UI, models, business logic, resources, and platform abstractions.
+- `android/` - Android app container, manifest, services, activities, and Android packaging.
+- `desktop/` - Desktop JVM entry point and packaging resources.
+- `spec/` - technical documentation for architecture, APIs, state, storage, services, and product flows.
+- `product/` - product concepts, user flows, views, rules, and known gaps.
+- `gradle/` - Gradle wrapper and build support.
 
 ## Build Commands
 
@@ -15,119 +56,125 @@ This is the **Kotlin Multiplatform (KMP)** mobile and desktop client for SimpleX
 # Android release APK
 ./gradlew assembleRelease
 
-# Desktop distribution (current OS)
+# Desktop distribution for the current OS
 ./gradlew :desktop:packageDistributionForCurrentOS
 
 # Run desktop/JVM tests
 ./gradlew desktopTest
 
-# Run Android instrumented tests (requires connected device/emulator)
+# Run Android instrumented tests
 ./gradlew connectedAndroidTest
 
 # Build native libraries for all platforms
 ./gradlew common:cmakeBuild -PcrossCompile
 
-# Clean build
+# Clean generated build output
 ./gradlew clean
 ```
 
-## Architecture
+## Local Configuration
 
-### Module Structure
-
-- **`common/`** - Shared code (Compose UI, models, business logic)
-  - `src/commonMain/` - Cross-platform code
-  - `src/androidMain/` - Android-specific implementations
-  - `src/desktopMain/` - Desktop-specific implementations
-- **`android/`** - Android app container
-- **`desktop/`** - Desktop JVM app container
-
-### Key Components (`common/src/commonMain/kotlin/chat/simplex/common/`)
-
-- **`model/ChatModel.kt`** - Main state container with reactive properties (MutableState, MutableStateFlow)
-- **`model/SimpleXAPI.kt`** - API bindings to Haskell core library via FFI
-- **`platform/Core.kt`** - FFI interface to native `libapp` library
-- **`platform/`** - Platform abstraction layer (expect/actual pattern for Android/Desktop specifics)
-- **`views/`** - Compose UI screens organized by feature (chat, chatlist, call, usersettings, etc.)
-- **`ui/theme/`** - Design system (colors, typography, shapes)
-
-### Native Integration
-
-The app calls into a Haskell core library via JNI/FFI:
-- CMake builds in `common/src/commonMain/cpp/android/` and `cpp/desktop/`
-- Cross-compilation toolchains in `cpp/toolchains/`
-- Built libraries go to `cpp/desktop/libs/` (organized by platform)
-
-## Configuration
-
-### `local.properties` (create from `local.properties.example`)
+Create `local.properties` from `local.properties.example` when you need local build settings:
 
 ```properties
-compression.level=0          # APK compression (0-9)
-enable_debuggable=true       # Debug mode
-application_id.suffix=.debug # Multiple app instances on same device
-app.name=SimpleX Debug       # App name for debug builds
+compression.level=0
+enable_debuggable=true
+application_id.suffix=.debug
+app.name=DEXGRAM Debug
 ```
 
-### `gradle.properties`
+`local.properties` is intentionally ignored by Git because it may contain machine-specific paths, signing settings, or local developer preferences.
 
-Contains versions (Kotlin, Compose, AGP) and app version info. Key settings:
-- `kotlin.jvm.target=11`
-- `database.backend=sqlite` (or `postgres`)
+## Architecture
+
+### Modules
+
+- `common/src/commonMain/` - cross-platform state, UI, models, resources, and shared business logic.
+- `common/src/androidMain/` - Android-specific `actual` implementations and Android-only UI helpers.
+- `common/src/desktopMain/` - Desktop-specific `actual` implementations and desktop integrations.
+- `android/src/main/` - Android application entry points, services, manifest, and resources.
+- `desktop/src/jvmMain/` - Desktop application entry point.
+
+### Key Areas
+
+- `common/src/commonMain/kotlin/chat/simplex/common/model/` - app state, chat model, and core API bindings.
+- `common/src/commonMain/kotlin/chat/simplex/common/views/` - Compose screens for chats, calls, settings, profiles, files, and wallet features.
+- `common/src/commonMain/kotlin/chat/simplex/common/platform/` - platform abstraction layer using Kotlin `expect` / `actual`.
+- `common/src/commonMain/kotlin/chat/simplex/common/ui/theme/` - themes, colors, typography, and UI styling.
+- `common/src/commonMain/cpp/` - native integration and build support for the core library.
+
+## Native Integration
+
+The app communicates with a native core library through JNI/FFI bindings.
+
+- Android native builds use CMake under `common/src/commonMain/cpp/android/`.
+- Desktop native builds use CMake under `common/src/commonMain/cpp/desktop/`.
+- Generated native libraries are build artifacts and should not be committed.
 
 ## Testing
 
-Tests are in:
-- `common/src/commonTest/kotlin/` - Cross-platform tests
-- `common/src/desktopTest/kotlin/` - Desktop-specific tests (run with `./gradlew desktopTest`)
-- `android/src/androidTest/` - Android instrumented tests
+Tests are organized by platform:
 
-## Resources & Localization
+- `common/src/commonTest/kotlin/` - shared tests.
+- `common/src/desktopTest/kotlin/` - Desktop-specific tests.
+- `android/src/androidTest/` - Android instrumented tests.
 
-- String resources: `common/src/commonMain/resources/MR/base/strings.xml` + 21 language variants
-- Uses Moko Resources (`dev.icerock.moko:resources`) for cross-platform resource management
-- The `adjustFormatting` gradle task validates string resources during build
+Useful commands:
 
-## Platform-Specific Notes
+```bash
+./gradlew test
+./gradlew desktopTest
+./gradlew connectedAndroidTest
+```
 
-### Android
-- Min SDK 26, Target SDK 35
-- NDK 23.1.7779620
-- Supports ABI splits: `arm64-v8a`, `armeabi-v7a`
-- Deep linking requires SHA certificate fingerprint in `assetlinks.json` (see README.md)
+## Resources and Localization
 
-### Desktop
-- Distributions: DMG (macOS), MSI/EXE (Windows), DEB (Linux)
-- Mac signing/notarization configured via `local.properties`
-- Video playback uses VLCJ
+DEXGRAM uses Moko Resources for cross-platform resource management.
 
-## Gotchas
+- Base strings live in `common/src/commonMain/resources/MR/base/strings.xml`.
+- Localized variants live alongside the base resource files.
+- The `adjustFormatting` Gradle task validates resource formatting during builds.
 
-#### SHA Signature for verification for app links/deep links
+## Android Notes
 
-In order for the SimpleX app to be automatically adopted for opening links from https://simplex.chat the SHA certificate fingerprint for the App installed on the phone must be in the hosted [assetlinks.json](https://simplex.chat/.well-known/assetlinks.json) file on simplex.chat.
+- Minimum SDK: 26
+- Target SDK: 35
+- NDK: 23.1.7779620
+- ABI splits include `arm64-v8a` and `armeabi-v7a`.
+- Android background messaging uses platform services and notification controls designed to preserve privacy without relying on contact discovery.
 
-The accepted fingerprints are in the `sha256_cert_fingerprints` list.
+## Desktop Notes
 
-To find your SHA certificate fingerprint perform the following steps.
+- Desktop packaging supports macOS, Windows, and Linux distributions.
+- macOS signing and notarization can be configured through local properties.
+- Desktop media playback uses platform-specific integrations.
 
-1. Build and install your development version of the app as usual
-2. From the terminal in Android studio run `adb shell pm get-app-links chat.simplex.app`
-3. Copy the signature listed in `signatures` in the result
-4. Add your signature to [assetlinks.json](https://github.com/simplex-chat/website/blob/master/.well-known/assetlinks.json) in the [website repo](https://github.com/simplex-chat/website) and make a PR. On approval, wait a few minutes for the changes to propagate to the public website and then you should be able to verify SimpleX.
+## Contributing
 
-More information is available [here](https://developer.android.com/training/app-links/verify-site-associations#manual-verification). If there is no response when running the `pm get-app-links` command, the intents in `AndroidManifest.xml` are likely misspecified. A verification attempt can be triggered using `adb shell pm verify-app-links --re-verify chat.simplex.app`. 
+Before changing behavior, read the relevant files under `product/` and `spec/` so the implementation stays aligned with the documented product model.
 
-Note that this is not an issue for the app store build of the app as this is signed with our app store credentials and thus there is a stable signature over users. Developers do not have general access to these credentials for development and testing.
+Recommended workflow:
 
-## Adding icons
+1. Read the product flow or view document that matches the feature.
+2. Read the related technical spec.
+3. Make the smallest focused change.
+4. Run the relevant Gradle test or build task.
+5. Check `git status --short` and `git diff` before committing.
 
-1. Find a [Material symbol](https://fonts.google.com/icons?icon.style=Rounded) in Rounded category.
+## Temporary Files and Build Output
 
-2. Set weight to 400, grade to -25 and size to 48px.
+Build artifacts, IDE state, native outputs, logs, and editor temporary files are ignored by `.gitignore`. Generated outputs should stay out of commits unless they are intentionally versioned source assets.
 
-3. Click on the icon, choose Android and download XML file.
+## Acknowledgements
 
-4. Update the color to black (#FF000000) and the size to "24.dp", as in other icons.
+DEXGRAM exists because we value the work of projects that pushed private messaging, self-custody, and hardware-backed security forward.
 
-For example, this is [add reaction icon](https://fonts.google.com/icons?selected=Material+Symbols+Rounded:add_reaction:FILL@0;wght@300;GRAD@-25;opsz@24&icon.style=Rounded).
+This project is forked from **SimpleX Chat** and **Unstoppable Wallet**, and it also uses the **YubiKey SDK** for hardware-backed security features. We deeply respect these projects and the people building them.
+
+DEXGRAM is not a rejection of the original projects. We like them, we think they are strong, and we want to keep learning from their work. At the same time, we want the freedom to explore a different product direction, combine private communication with self-custody, simplify some decisions, and make tradeoffs that fit our own vision.
+
+## License
+
+DEXGRAM is licensed under the **GNU Affero General Public License v3.0** (`AGPL-3.0`).
+
+See [LICENSE](LICENSE) for the full license text.
