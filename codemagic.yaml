@@ -9,7 +9,7 @@ workflows:
         - github_release
       java: 21
       android_signing:
-        - dexgram_release_keystore
+        - dexgram
       vars:
         PACKAGE_NAME: "com.dexgram.app"
 
