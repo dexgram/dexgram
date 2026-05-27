@@ -107,6 +107,23 @@ workflows:
 
           ls -lh "$LIBS_DIR/arm64-v8a" "$LIBS_DIR/armeabi-v7a"
 
+      - name: Set Android version from Git tag
+        script: |
+          set -e
+
+          if [ -z "${CM_TAG:-}" ]; then
+            echo "No Git tag detected. Keeping version from gradle.properties."
+            exit 0
+          fi
+
+          VERSION_NAME="${CM_TAG#v}"
+          VERSION_CODE="${CM_BUILD_NUMBER:-1}"
+
+          echo "Using Android versionName=$VERSION_NAME versionCode=$VERSION_CODE"
+
+          perl -pi -e "s/^android\.version_name=.*/android.version_name=$VERSION_NAME/" gradle.properties
+          perl -pi -e "s/^android\.version_code=.*/android.version_code=$VERSION_CODE/" gradle.properties
+
       - name: Validate signing variables
         script: |
           set -e
