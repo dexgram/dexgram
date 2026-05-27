@@ -1,0 +1,124 @@
+workflows:
+  android-release:
+    name: Android Release
+    instance_type: linux_x2
+    max_build_duration: 120
+
+    environment:
+      groups:
+        - github_release
+      java: 21
+      android_signing:
+        - dexgram_release_keystore
+      vars:
+        PACKAGE_NAME: "com.dexgram.app"
+
+    triggering:
+      events:
+        - push
+        - tag
+      branch_patterns:
+        - pattern: "main"
+          include: true
+          source: true
+        - pattern: "master"
+          include: true
+          source: true
+      tag_patterns:
+        - pattern: "*"
+          include: true
+
+    cache:
+      cache_paths:
+        - ~/.gradle/caches
+        - ~/.gradle/wrapper
+        - ~/.android/build-cache
+
+    scripts:
+      - name: Prepare Android SDK and Gradle wrapper
+        script: |
+          set -e
+
+          perl -pi -e 's/\r$//' gradlew gradlew.bat
+          chmod +x gradlew
+
+          SDK_DIR="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          if [ -z "$SDK_DIR" ]; then
+            echo "ANDROID_SDK_ROOT or ANDROID_HOME must be set"
+            exit 1
+          fi
+
+          printf 'sdk.dir=%s\n' "$SDK_DIR" > local.properties
+
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager \
+            "platforms;android-35" \
+            "build-tools;34.0.0" \
+            "ndk;23.1.7779620" \
+            "cmake;3.22.1"
+
+      - name: Validate signing variables
+        script: |
+          set -e
+
+          for name in CM_KEYSTORE_PATH CM_KEYSTORE_PASSWORD CM_KEY_ALIAS CM_KEY_PASSWORD; do
+            value="$(eval "printf '%s' \"\${$name:-}\"")"
+            if [ -z "$value" ]; then
+              echo "$name is missing. Check the Codemagic Android code signing identity."
+              exit 1
+            fi
+          done
+
+      - name: Build signed APK and AAB
+        script: |
+          set -e
+
+          ./gradlew --no-daemon \
+            :android:assembleRelease \
+            -Pandroid.injected.signing.store.file="$CM_KEYSTORE_PATH" \
+            -Pandroid.injected.signing.store.password="$CM_KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$CM_KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$CM_KEY_PASSWORD"
+
+          ./gradlew --no-daemon \
+            :android:bundleRelease \
+            -Pandroid.injected.signing.store.file="$CM_KEYSTORE_PATH" \
+            -Pandroid.injected.signing.store.password="$CM_KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$CM_KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$CM_KEY_PASSWORD"
+
+      - name: Collect release files
+        script: |
+          set -e
+
+          mkdir -p build/codemagic-artifacts
+          find android/build/outputs/apk/release -name "*.apk" -exec cp {} build/codemagic-artifacts/ \;
+          find android/build/outputs/bundle/release -name "*.aab" -exec cp {} build/codemagic-artifacts/ \;
+
+          ls -la build/codemagic-artifacts
+
+    artifacts:
+      - build/codemagic-artifacts/*.apk
+      - build/codemagic-artifacts/*.aab
+      - android/build/outputs/mapping/release/mapping.txt
+
+    publishing:
+      scripts:
+        - name: Publish tagged builds to GitHub Releases
+          script: |
+            set -e
+
+            if [ -z "${CM_TAG:-}" ]; then
+              echo "Not a tag build. Skipping GitHub release publishing."
+              exit 0
+            fi
+
+            if [ -z "${GITHUB_TOKEN:-}" ]; then
+              echo "GITHUB_TOKEN is not set. Skipping GitHub release publishing."
+              exit 0
+            fi
+
+            gh release create "$CM_TAG" \
+              --title "DEXGRAM $CM_TAG" \
+              --notes "Automated signed Android release from Codemagic build $CM_BUILD_ID." \
+              build/codemagic-artifacts/*
