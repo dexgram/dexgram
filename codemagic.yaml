@@ -81,7 +81,7 @@ workflows:
         script: |
           set -e
 
-          for name in CM_KEYSTORE_PATH CM_KEYSTORE_PASSWORD CM_KEY_ALIAS CM_KEY_PASSWORD; do
+          for name in CM_KEYSTORE_PATH CM_KEYSTORE_PASSWORD CM_KEY_ALIAS; do
             value="$(eval "printf '%s' \"\${$name:-}\"")"
             if [ -z "$value" ]; then
               echo "$name is missing. Check the Codemagic Android code signing identity."
@@ -89,23 +89,30 @@ workflows:
             fi
           done
 
+          if [ -z "${CM_KEY_PASSWORD:-}" ]; then
+            echo "CM_KEY_PASSWORD is missing. Falling back to CM_KEYSTORE_PASSWORD."
+            echo "If your key password differs from your keystore password, add it in the Codemagic keystore settings."
+          fi
+
       - name: Build signed APK and AAB
         script: |
           set -e
+
+          KEY_PASSWORD="${CM_KEY_PASSWORD:-$CM_KEYSTORE_PASSWORD}"
 
           ./gradlew --no-daemon \
             :android:assembleRelease \
             -Pandroid.injected.signing.store.file="$CM_KEYSTORE_PATH" \
             -Pandroid.injected.signing.store.password="$CM_KEYSTORE_PASSWORD" \
             -Pandroid.injected.signing.key.alias="$CM_KEY_ALIAS" \
-            -Pandroid.injected.signing.key.password="$CM_KEY_PASSWORD"
+            -Pandroid.injected.signing.key.password="$KEY_PASSWORD"
 
           ./gradlew --no-daemon \
             :android:bundleRelease \
             -Pandroid.injected.signing.store.file="$CM_KEYSTORE_PATH" \
             -Pandroid.injected.signing.store.password="$CM_KEYSTORE_PASSWORD" \
             -Pandroid.injected.signing.key.alias="$CM_KEY_ALIAS" \
-            -Pandroid.injected.signing.key.password="$CM_KEY_PASSWORD"
+            -Pandroid.injected.signing.key.password="$KEY_PASSWORD"
 
       - name: Collect release files
         script: |
