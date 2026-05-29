@@ -111,6 +111,20 @@ The app communicates with a native core library through JNI/FFI bindings.
 - Desktop native builds use CMake under `common/src/commonMain/cpp/desktop/`.
 - Generated native libraries are build artifacts and should not be committed.
 
+### Android Haskell Core Libraries
+
+DEXGRAM does not build the SimpleX Haskell core inside the regular Android CI job. When working from a cloned SimpleX Chat repository, the Android Haskell libraries must be generated first with:
+
+```bash
+scripts/android/build-android-libs.sh
+```
+
+That script produces the native `.so` libraries required by the Android build, including `libsimplex.so` and `libsupport.so`. After they are built, we collect the generated `.so` files and inject them into the DEXGRAM Android build under `common/src/commonMain/cpp/android/libs/<abi>/`.
+
+The `codemagic.yaml` workflow shows the injection step used by our Android build: it downloads the prebuilt `.so` files for `arm64-v8a` and `armeabi-v7a`, verifies that they exist, and then lets Gradle/CMake package them into the APK or AAB.
+
+Generating these Haskell libraries is slow and resource-intensive. We use a dedicated machine only for this native compilation step, and the resulting artifacts are then consumed by the Android build. This work should be done outside Codemagic; Codemagic should only receive or download the already-built native libraries.
+
 ## Testing
 
 Tests are organized by platform:
