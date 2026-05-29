@@ -113,10 +113,13 @@ The app communicates with a native core library through JNI/FFI bindings.
 
 ### Android Haskell Core Libraries
 
-DEXGRAM does not build the SimpleX Haskell core inside the regular Android CI job. When working from a cloned SimpleX Chat repository, the Android Haskell libraries must be generated first with:
+DEXGRAM does not build the SimpleX Haskell core inside the regular Android CI job. The native libraries are built from a separate SimpleX Chat checkout. In a separate working directory, clone SimpleX Chat, copy our Android library build script into that checkout, then run it from the SimpleX repository root:
 
 ```bash
-scripts/android/build-android-libs.sh
+git clone https://github.com/simplex-chat/simplex-chat.git
+cp build-android-libs.sh simplex-chat/scripts/android/
+cd simplex-chat
+ARCHES="aarch64 armv7a" ./scripts/android/build-android-libs.sh
 ```
 
 That script produces the native `.so` libraries required by the Android build, including `libsimplex.so` and `libsupport.so`. After they are built, we collect the generated `.so` files and inject them into the DEXGRAM Android build under `common/src/commonMain/cpp/android/libs/<abi>/`.
