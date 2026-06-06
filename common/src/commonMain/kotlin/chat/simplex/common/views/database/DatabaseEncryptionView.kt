@@ -842,7 +842,11 @@ suspend fun encryptDatabase(
     if (!m.chatDbChanged.value) {
       m.controller.apiSaveAppSettings(AppSettings.current.prepareForExport())
     }
-    val error = m.controller.apiStorageEncryption(currentKey.value, newKey.value)
+    var error = m.controller.apiStorageEncryption(currentKey.value, newKey.value)
+    if (error.isStorageNoFileError()) {
+      initChatController(useKey = currentKey.value)
+      error = m.controller.apiStorageEncryption(currentKey.value, newKey.value)
+    }
     appPrefs.encryptionStartedAt.set(null)
     val sqliteError = ((error as? ChatError.ChatErrorDatabase)?.databaseError as? DatabaseError.ErrorExport)?.sqliteError
     when {
@@ -889,6 +893,9 @@ suspend fun encryptDatabase(
     false
   }
 }
+
+private fun ChatError?.isStorageNoFileError(): Boolean =
+  ((this as? ChatError.ChatErrorDatabase)?.databaseError as? DatabaseError.ErrorNoFile) != null
 
 /**
  * Flexible password entropy calculation.
