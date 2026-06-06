@@ -5,6 +5,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 
 @Composable
 actual fun VaultFilePicker(
+    source: VaultPickSource,
     onFilePicked: (name: String, mimeType: String, bytes: ByteArray) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -12,6 +13,9 @@ actual fun VaultFilePicker(
 }
 
 actual fun decodeVaultImage(bytes: ByteArray): ImageBitmap? = null
+
+actual fun currentDeviceLabel(): DeviceLabel =
+    DeviceLabel(model = System.getProperty("os.name") ?: "Desktop", name = "")
 
 actual fun writeVaultTempFile(bytes: ByteArray, extension: String): String? = null
 

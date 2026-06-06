@@ -1,11 +1,15 @@
 package chat.simplex.common.views.vault
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.media.MediaMetadataRetriever
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import chat.simplex.common.platform.androidAppContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.security.KeyStore
 import java.security.SecureRandom
@@ -181,6 +185,98 @@ actual object VaultStorage {
         return d
     }
 
+    // ─── Thumbnails ──────────────────────────────────────────────
+    //
+    // Small encrypted preview images cached under vault/thumbs/<id>.thumb.
+    // Same on-disk crypto format as the index (master-key AES-GCM, iv prefixed).
+    // Generated at import time from plaintext; lazily backfilled for older files.
+
+    private const val THUMB_MAX_DIM = 256
+    private const val THUMB_QUALITY = 72
+
+    private fun thumbsDir(): File = File(baseDir(), "thumbs").apply { if (!exists()) mkdirs() }
+    private fun thumbFile(entryId: String) = File(thumbsDir(), "$entryId.thumb")
+
+    private fun storeThumb(entryId: String, thumbBytes: ByteArray) {
+        try {
+            val (iv, enc) = gcmEncrypt(thumbBytes, masterKey())
+            thumbFile(entryId).writeBytes(iv + enc)
+        } catch (e: Exception) {
+            android.util.Log.w("VaultStorage", "storeThumb failed for $entryId", e)
+        }
+    }
+
+    private fun loadThumb(entryId: String): ByteArray? {
+        val f = thumbFile(entryId)
+        if (!f.exists()) return null
+        return try {
+            val raw = f.readBytes()
+            gcmDecrypt(raw.copyOfRange(0, IV_SIZE), raw.copyOfRange(IV_SIZE, raw.size), masterKey())
+        } catch (_: Exception) { null }
+    }
+
+    private fun deleteThumb(entryId: String) {
+        try { secureDelete(thumbFile(entryId)) } catch (_: Exception) {}
+    }
+
+    /** Downscales an encoded image to a small JPEG thumbnail. */
+    private fun makeImageThumb(src: ByteArray): ByteArray? = try {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(src, 0, src.size, bounds)
+        val w = bounds.outWidth
+        val h = bounds.outHeight
+        if (w <= 0 || h <= 0) null
+        else {
+            var sample = 1
+            while (w / (sample * 2) >= THUMB_MAX_DIM && h / (sample * 2) >= THUMB_MAX_DIM) sample *= 2
+            val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+            val decoded = BitmapFactory.decodeByteArray(src, 0, src.size, opts)
+            if (decoded == null) null else scaleAndCompress(decoded)
+        }
+    } catch (_: Exception) { null }
+
+    /** Extracts the first frame of a video and downscales it to a JPEG thumbnail. */
+    private fun makeVideoThumb(src: ByteArray): ByteArray? {
+        var tmp: File? = null
+        val retriever = MediaMetadataRetriever()
+        return try {
+            tmp = File(androidAppContext.cacheDir, "thumb_src_${System.nanoTime()}.bin").also { it.writeBytes(src) }
+            retriever.setDataSource(tmp.absolutePath)
+            val frame = retriever.getFrameAtTime(0) ?: return null
+            scaleAndCompress(frame)
+        } catch (_: Exception) {
+            null
+        } finally {
+            try { retriever.release() } catch (_: Exception) {}
+            tmp?.let { try { it.writeBytes(ByteArray(it.length().toInt())); it.delete() } catch (_: Exception) {} }
+        }
+    }
+
+    private fun scaleAndCompress(bmp: Bitmap): ByteArray {
+        val largest = maxOf(bmp.width, bmp.height)
+        val scaled = if (largest > THUMB_MAX_DIM) {
+            val f = THUMB_MAX_DIM.toFloat() / largest
+            Bitmap.createScaledBitmap(
+                bmp,
+                (bmp.width * f).toInt().coerceAtLeast(1),
+                (bmp.height * f).toInt().coerceAtLeast(1),
+                true
+            )
+        } else bmp
+        val out = ByteArrayOutputStream()
+        scaled.compress(Bitmap.CompressFormat.JPEG, THUMB_QUALITY, out)
+        if (scaled !== bmp) scaled.recycle()
+        bmp.recycle()
+        return out.toByteArray()
+    }
+
+    /** Builds a thumbnail from plaintext bytes for the given file type, if visual. */
+    private fun thumbFromPlaintext(type: VaultFileType, plain: ByteArray): ByteArray? = when (type) {
+        VaultFileType.PHOTO -> makeImageThumb(plain)
+        VaultFileType.VIDEO -> makeVideoThumb(plain)
+        else -> null
+    }
+
     // ─── Encrypted index ─────────────────────────────────────────
 
     private fun loadIndex(): VaultIndex {
@@ -243,6 +339,8 @@ actual object VaultStorage {
         val entry = VaultFileEntry(id, folderId, name, type, sourceBytes.size.toLong(), mimeType, salt != null)
         idx.files.add(entry)
         saveIndex(idx)
+        // Build a preview thumbnail from the plaintext we still hold in memory.
+        try { thumbFromPlaintext(type, sourceBytes)?.let { storeThumb(id, it) } } catch (_: Exception) {}
         entry
     } catch (e: Exception) {
         android.util.Log.e("VaultStorage", "Import failed", e); null
@@ -257,6 +355,7 @@ actual object VaultStorage {
 
     actual fun deleteFile(entry: VaultFileEntry): Boolean = try {
         secureDelete(File(fileDir(entry.folderId), "${entry.id}.vault"))
+        deleteThumb(entry.id)
         val idx = loadIndex()
         idx.files.removeAll { it.id == entry.id }
         saveIndex(idx); true
@@ -291,6 +390,7 @@ actual object VaultStorage {
         val idx = loadIndex()
         idx.files.filter { it.folderId == folderId }.forEach { fe ->
             secureDelete(File(fileDir(folderId), "${fe.id}.vault"))
+            deleteThumb(fe.id)
         }
         idx.files.removeAll { it.folderId == folderId }
         idx.folders.removeAll { it.id == folderId }
@@ -319,6 +419,18 @@ actual object VaultStorage {
         android.util.Log.e("VaultStorage", "getRawVaultFile failed", e); null
     }
 
+    actual fun getThumbnail(entry: VaultFileEntry, folderPassword: String?): ByteArray? {
+        // Only image/video have meaningful previews.
+        if (entry.fileType != VaultFileType.PHOTO && entry.fileType != VaultFileType.VIDEO) return null
+        loadThumb(entry.id)?.let { return it }
+        // Lazy backfill for files imported before thumbnails existed: decrypt the
+        // full file once, build the thumb, and cache it for next time.
+        return try {
+            val plain = decryptFile(entry, folderPassword) ?: return null
+            thumbFromPlaintext(entry.fileType, plain)?.also { storeThumb(entry.id, it) }
+        } catch (_: Exception) { null }
+    }
+
     actual fun markFileBacked(entryId: String, backed: Boolean) {
         try {
             val idx = loadIndex()
@@ -329,6 +441,19 @@ actual object VaultStorage {
             }
         } catch (e: Exception) {
             android.util.Log.e("VaultStorage", "markFileBacked failed", e)
+        }
+    }
+
+    actual fun setFileServerId(entryId: String, serverId: String) {
+        try {
+            val idx = loadIndex()
+            val i = idx.files.indexOfFirst { it.id == entryId }
+            if (i >= 0) {
+                idx.files[i] = idx.files[i].copy(serverFileId = serverId)
+                saveIndex(idx)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("VaultStorage", "setFileServerId failed", e)
         }
     }
 
@@ -355,6 +480,8 @@ actual object VaultStorage {
                 idx.files.add(entry.copy(isDoubleEncrypted = false))
             }
             saveIndex(idx)
+            // Regenerate the preview thumbnail from the restored plaintext.
+            try { thumbFromPlaintext(entry.fileType, rawVaultBytes)?.let { storeThumb(entryId, it) } } catch (_: Exception) {}
         } catch (e: Exception) {
             android.util.Log.e("VaultStorage", "restoreVaultFile failed", e)
         }

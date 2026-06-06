@@ -1,5 +1,7 @@
 package chat.simplex.common.views.vault
 
+import cash.z.ecc.android.bip39.Mnemonics
+import cash.z.ecc.android.bip39.toSeed
 import chat.simplex.common.platform.androidAppContext
 import java.security.MessageDigest
 import java.security.SecureRandom
@@ -11,23 +13,29 @@ import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
 
 /**
- * E2EE Backup Cryptography — all keys derived from the user's 16-digit Pro
- * account code (the same one used to authenticate against the Dexgram backend).
+ * E2EE Backup Cryptography.
+ *
+ * Two independent secrets protect a backup:
+ *  1. The 16-digit Pro account code — used to AUTHENTICATE with the Dexgram
+ *     vault backend (/auth/login). The server knows this code, so it MUST NOT
+ *     be enough on its own to decrypt anything.
+ *  2. A 24-word BIP39 recovery phrase (256 bits of entropy) — generated on the
+ *     device when backup is enabled and never sent to the server. This is the
+ *     real encryption secret.
  *
  * Key hierarchy:
- *   clientCode (16 digits)
- *     ├── PBKDF2-HMAC-SHA256(salt=APP_SALT, iters=310_000, len=32) → master_seed
- *     │
- *     ├── HKDF("backup-enc")   → backup_encryption_key  (AES-256, wraps vault files)
- *     ├── HKDF("backup-auth")  → user_id_hash (informational, never sent — server
- *     │                          already knows the code via /auth/login)
- *     └── HKDF("backup-index") → index_encryption_key   (AES-256, wraps meta.enc)
+ *   recoveryPhrase (24 words)  +  proCode (as BIP39 "25th-word" passphrase)
+ *     └── BIP39 toSeed (PBKDF2-HMAC-SHA512, 2048 rounds) → 64-byte master_seed
+ *           ├── HKDF("backup-enc")   → backup_encryption_key (AES-256, wraps files)
+ *           └── HKDF("backup-index") → index_encryption_key  (AES-256, wraps meta)
  *
- * Security trade-off vs. the previous BIP39 scheme: a 16-digit decimal code is
- * ~53 bits of entropy vs. BIP39's 256 bits. PBKDF2 at 310k iterations slows
- * offline brute-force but does not match BIP39 strength. This is the chosen
- * UX trade-off — "anonymous code" is the user's sole credential for both
- * subscription and backup.
+ * Because the seed depends on BOTH the phrase and the code, leaking the Pro code
+ * (e.g. by sharing it) does NOT expose the backup: an attacker can download the
+ * encrypted blobs but cannot derive the AES keys without the 24-word phrase.
+ *
+ * Legacy fallback: if no recovery phrase is stored yet (backup created before
+ * this feature), the seed falls back to PBKDF2 over the code alone so older
+ * backups remain decryptable. New backups always have a phrase.
  *
  * @Suppress("unused") because helpers like [encrypt] / [decrypt] / [hkdfSha256]
  * are also used by [BackupService] via direct reference and lint can't see it.
@@ -39,9 +47,10 @@ object BackupCrypto {
     private const val PREFS_NAME = "vault_backup_prefs"
     private const val KEY_BACKUP_ENABLED = "backup_enabled"
     private const val KEY_LAST_BACKUP = "last_backup_ms"
+    private const val KEY_RECOVERY_PHRASE = "recovery_phrase"
 
-    // PBKDF2 parameters. Fixed app-level salt — input is already per-user.
-    // Iteration count follows OWASP 2023 PBKDF2-SHA256 recommendation (≥310k).
+    // PBKDF2 parameters (legacy code-only fallback). Fixed app-level salt —
+    // input is already per-user. Iteration count follows OWASP 2023 (≥310k).
     private const val PBKDF2_ITERS = 310_000
     private const val PBKDF2_KEY_LEN_BITS = 256
     private val APP_SALT: ByteArray = MessageDigest.getInstance("SHA-256")
@@ -49,9 +58,9 @@ object BackupCrypto {
 
     private val rng = SecureRandom()
 
-    // Cache the expensive PBKDF2-derived seed once per process per code so
-    // per-file backup/restore operations stay snappy.
-    @Volatile private var cachedCode: String? = null
+    // Cache the expensive derived seed once per process per (code|phrase) combo
+    // so per-file backup/restore operations stay snappy.
+    @Volatile private var cachedKey: String? = null
     @Volatile private var cachedSeed: ByteArray? = null
 
     // ─── Client-code normalization ────────────────────────────
@@ -59,24 +68,60 @@ object BackupCrypto {
     /** Strip every non-digit so dashes/spaces don't change the derived key. */
     private fun normalize(clientCode: String): String = clientCode.filter { it.isDigit() }
 
-    // ─── PBKDF2 master seed ───────────────────────────────────
+    // ─── Recovery phrase (24-word BIP39) ──────────────────────
+
+    /** Normalizes a phrase to lowercase, single-spaced words for stable hashing. */
+    private fun normalizePhrase(phrase: String): String =
+        phrase.trim().lowercase().split(Regex("\\s+")).filter { it.isNotEmpty() }.joinToString(" ")
+
+    /** Generates a fresh 24-word recovery phrase (256-bit entropy). Does NOT store it. */
+    fun generateRecoveryPhrase(): String {
+        val entropy = ByteArray(32).also { rng.nextBytes(it) } // 256 bits → 24 words
+        val code = Mnemonics.MnemonicCode(entropy)
+        return code.words.joinToString(" ") { String(it) }
+    }
+
+    /** Validates a BIP39 phrase (word count + checksum). */
+    fun validateRecoveryPhrase(phrase: String): Boolean = try {
+        val normalized = normalizePhrase(phrase)
+        val wordCount = normalized.split(" ").size
+        if (wordCount != 24) false
+        else { Mnemonics.MnemonicCode(normalized).validate(); true }
+    } catch (_: Exception) { false }
+
+    fun hasRecoveryPhrase(): Boolean = !prefs().getString(KEY_RECOVERY_PHRASE, null).isNullOrBlank()
+
+    fun getRecoveryPhrase(): String? = prefs().getString(KEY_RECOVERY_PHRASE, null)
+
+    /** Persists the recovery phrase locally and clears the cached seed. */
+    fun setRecoveryPhrase(phrase: String) {
+        prefs().edit().putString(KEY_RECOVERY_PHRASE, normalizePhrase(phrase)).apply()
+        cachedKey = null
+        cachedSeed = null
+    }
+
+    // ─── Master seed ──────────────────────────────────────────
 
     private fun deriveSeed(clientCode: String): ByteArray {
         val normalized = normalize(clientCode)
+        val phrase = getRecoveryPhrase()?.takeIf { it.isNotBlank() }
+        val cacheKey = normalized + "|" + (phrase ?: "")
         val hit = cachedSeed
-        if (hit != null && cachedCode == normalized) return hit
+        if (hit != null && cachedKey == cacheKey) return hit
 
-        val spec = PBEKeySpec(
-            normalized.toCharArray(),
-            APP_SALT,
-            PBKDF2_ITERS,
-            PBKDF2_KEY_LEN_BITS
-        )
-        val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
-        val seed = factory.generateSecret(spec).encoded
-        spec.clearPassword()
+        val seed: ByteArray = if (phrase != null) {
+            // BIP39 seed bound to the Pro code (used as the BIP39 passphrase).
+            // toSeed runs PBKDF2-HMAC-SHA512 × 2048 internally and returns 64 bytes.
+            Mnemonics.MnemonicCode(phrase).toSeed(normalized.toCharArray())
+        } else {
+            // Legacy code-only fallback (PBKDF2-HMAC-SHA256).
+            val spec = PBEKeySpec(normalized.toCharArray(), APP_SALT, PBKDF2_ITERS, PBKDF2_KEY_LEN_BITS)
+            val out = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded
+            spec.clearPassword()
+            out
+        }
 
-        cachedCode = normalized
+        cachedKey = cacheKey
         cachedSeed = seed
         return seed
     }
@@ -174,8 +219,9 @@ object BackupCrypto {
             .remove(KEY_LAST_BACKUP)
             .apply()
         // Wipe the in-memory derived key so a future sign-in / sign-out cycle
-        // re-runs PBKDF2 fresh.
-        cachedCode = null
+        // re-derives fresh. The recovery phrase itself is intentionally kept so
+        // the user can re-enable without re-entering it.
+        cachedKey = null
         cachedSeed = null
     }
 
