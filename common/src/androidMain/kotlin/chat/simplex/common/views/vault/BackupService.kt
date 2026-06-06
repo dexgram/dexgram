@@ -38,7 +38,7 @@ object BackupService {
 
     // ─── Enable Backup ────────────────────────────────────────
 
-    data class EnableResult(val success: Boolean, val error: String? = null)
+    data class EnableResult(val success: Boolean, val error: String? = null, val newPassphrase: String? = null)
 
     suspend fun enableBackup(): EnableResult = withContext(Dispatchers.IO) {
         try {
@@ -56,6 +56,17 @@ object BackupService {
                 }
             }
 
+            // Ensure this device has a 24-word recovery phrase — the secret that
+            // actually encrypts the backup (independent of the shareable Pro code).
+            // Generated once; returned so the UI can show it to the user to save.
+            var newPassphrase: String? = null
+            if (!BackupCrypto.hasRecoveryPhrase()) {
+                val phrase = BackupCrypto.generateRecoveryPhrase()
+                BackupCrypto.setRecoveryPhrase(phrase)
+                newPassphrase = phrase
+                Log.d(TAG, "enableBackup: generated a new recovery phrase for this account")
+            }
+
             val indexKey = BackupCrypto.deriveIndexEncKey(code)
 
             // If a meta blob already exists for this account on the server,
@@ -68,18 +79,31 @@ object BackupService {
                 BackupCrypto.markBackupEnabled()
                 BackupCrypto.setLastBackupTime(System.currentTimeMillis())
                 Log.d(TAG, "enableBackup: adopted existing remote index (${existing.files.size} files)")
-                return@withContext EnableResult(true)
+                return@withContext EnableResult(true, newPassphrase = newPassphrase)
             }
 
             // No remote index → fresh enable. Local files (if any) are NOT in
             // the cloud yet, so wipe stale `backedUp` flags from prior sessions.
             resetAllLocalBackedFlags()
 
-            val emptyIndex = BackupIndex(
+            // Seed the initial index with the current folder structure so even
+            // empty / locked folders are backed up immediately on enable.
+            val localIndex = VaultStorage.getIndex()
+            val initialIndex = BackupIndex(
                 createdAtMs = System.currentTimeMillis(),
-                lastBackupAtMs = System.currentTimeMillis()
+                lastBackupAtMs = System.currentTimeMillis(),
+                folders = localIndex.folders.map { f ->
+                    BackupFolderMeta(
+                        id = f.id,
+                        name = f.name,
+                        hasPassword = f.hasPassword,
+                        passwordSalt = f.passwordSalt,
+                        passwordVerifier = f.passwordVerifier,
+                        createdAtMs = f.createdAtMs
+                    )
+                }
             )
-            val indexJson = json.encodeToString(emptyIndex).toByteArray(Charsets.UTF_8)
+            val indexJson = json.encodeToString(initialIndex).toByteArray(Charsets.UTF_8)
             val encryptedIndex = BackupCrypto.encrypt(indexJson, indexKey)
 
             when (val r = VaultApi.uploadBlob(VaultApi.META_MIME, encryptedIndex)) {
@@ -87,7 +111,7 @@ object BackupService {
                     appPrefs.vaultMetaFileId.set(r.value)
                     BackupCrypto.markBackupEnabled()
                     BackupCrypto.setLastBackupTime(System.currentTimeMillis())
-                    EnableResult(true)
+                    EnableResult(true, newPassphrase = newPassphrase)
                 }
                 is VaultApi.Result.Error -> {
                     Log.e(TAG, "Failed to upload initial index: ${r.message}")
@@ -184,6 +208,10 @@ object BackupService {
             when (val r = VaultApi.uploadBlob("application/octet-stream", bakBytes)) {
                 is VaultApi.Result.Success -> {
                     VaultStorage.markFileBacked(entry.id, true)
+                    // Persist the server id locally so the remote index can always
+                    // be rebuilt from local state, even if downloading the previous
+                    // index fails transiently.
+                    VaultStorage.setFileServerId(entry.id, r.value)
                     updateRemoteIndex(code, addition = entry.id to r.value)
                     true
                 }
@@ -202,7 +230,17 @@ object BackupService {
 
     data class BackupProgress(val current: Int, val total: Int, val done: Boolean, val errors: Int = 0)
 
-    suspend fun backupAll(onProgress: (BackupProgress) -> Unit = {}): BackupProgress = withContext(Dispatchers.IO) {
+    /**
+     * Backs up all eligible files.
+     *
+     * @param folderPasswords map of folderId → password for password-protected
+     *   folders the user has unlocked for this backup. Files in such folders are
+     *   double-encrypted and can only be uploaded if the password is supplied here.
+     */
+    suspend fun backupAll(
+        folderPasswords: Map<String, String> = emptyMap(),
+        onProgress: (BackupProgress) -> Unit = {}
+    ): BackupProgress = withContext(Dispatchers.IO) {
         val code = clientCode()
         if (code == null) {
             val p = BackupProgress(0, 0, true, 1)
@@ -210,21 +248,25 @@ object BackupService {
         }
 
         val index = VaultStorage.getIndex()
-        val allFiles = index.files
-        val total = allFiles.size
-        if (total == 0) {
-            val p = BackupProgress(0, 0, true)
-            onProgress(p); return@withContext p
+        // A file is backupable when it's not double-encrypted, OR it's in a
+        // password folder whose password we were given.
+        val backupable = index.files.filter { e ->
+            !e.isDoubleEncrypted || (e.folderId != null && folderPasswords.containsKey(e.folderId))
         }
+        val total = backupable.size
 
         var done = 0
         var errors = 0
-        for (entry in allFiles) {
-            val ok = backupFile(entry)
+        for (entry in backupable) {
+            val pwd = entry.folderId?.let { folderPasswords[it] }
+            val ok = backupFile(entry, pwd)
             if (ok) done++ else errors++
             onProgress(BackupProgress(done + errors, total, false, errors))
         }
 
+        // Always sync the remote index — even with zero files — so the folder
+        // structure (including empty or still-locked folders) is backed up and
+        // can be recreated on restore.
         updateRemoteIndex(code)
         BackupCrypto.setLastBackupTime(System.currentTimeMillis())
         val p = BackupProgress(done, total, true, errors)
@@ -259,6 +301,7 @@ object BackupService {
     data class RestoreProgress(val current: Int, val total: Int, val done: Boolean, val errors: Int = 0)
 
     suspend fun restoreFromCloud(
+        selectedIds: Set<String>? = null,
         onProgress: (RestoreProgress) -> Unit = {}
     ): RestoreProgress = withContext(Dispatchers.IO) {
         try {
@@ -300,8 +343,31 @@ object BackupService {
                 }
             }
 
-            val total = remoteIndex.files.size
+            // Only files that were actually uploaded (have a serverFileId) can be
+            // restored. Entries without one were never in the cloud (e.g. password
+            // folder files that couldn't be backed up, or stale index entries) —
+            // exclude them from the count so they don't surface as restore errors.
+            val withServerId = remoteIndex.files.filter { it.serverFileId.isNotBlank() }
+            val restorable = withServerId.filter { selectedIds == null || it.id in selectedIds }
+            val skippedNoServerId = remoteIndex.files.size - withServerId.size
+            if (skippedNoServerId > 0) {
+                Log.w(TAG, "restore: skipping $skippedNoServerId index entr(ies) with no serverFileId")
+            }
+            val total = restorable.size
             if (total == 0) {
+                // The remote index has nothing to restore. On a flaky backend a
+                // file blob can upload successfully while the meta update that
+                // records it is lost to a 503 — leaving the blob orphaned from
+                // the index. If THIS device still remembers backed-up files
+                // (serverFileId persisted locally), repair the remote index from
+                // local state so it's not lost for future devices.
+                val locallyKnown = localIndex.files.filter { it.backedUp && it.serverFileId.isNotBlank() }
+                val remoteIds = remoteIndex.files.map { it.id }.toHashSet()
+                val missingFromRemote = locallyKnown.filter { it.id !in remoteIds }
+                if (missingFromRemote.isNotEmpty()) {
+                    Log.w(TAG, "restore: remote index missing ${missingFromRemote.size} locally-backed file(s) — repairing remote index")
+                    updateRemoteIndex(code)
+                }
                 BackupCrypto.markBackupEnabled()
                 val p = RestoreProgress(0, 0, true); onProgress(p); return@withContext p
             }
@@ -309,18 +375,11 @@ object BackupService {
             var restored = 0
             var errors = 0
 
-            for (fileMeta in remoteIndex.files) {
+            for (fileMeta in restorable) {
                 try {
                     val currentIndex = VaultStorage.getIndex()
                     if (currentIndex.files.any { it.id == fileMeta.id }) {
                         restored++
-                        onProgress(RestoreProgress(restored + errors, total, false, errors))
-                        continue
-                    }
-
-                    if (fileMeta.serverFileId.isBlank()) {
-                        Log.w(TAG, "File ${fileMeta.id} has no serverFileId — old format?")
-                        errors++
                         onProgress(RestoreProgress(restored + errors, total, false, errors))
                         continue
                     }
@@ -348,7 +407,8 @@ object BackupService {
                                 mimeType = fileMeta.mimeType,
                                 isDoubleEncrypted = false,
                                 addedAtMs = fileMeta.addedAtMs,
-                                backedUp = true
+                                backedUp = true,
+                                serverFileId = fileMeta.serverFileId
                             )
                             VaultStorage.restoreVaultFile(fileMeta.id, plaintext, entry)
                             restored++
@@ -375,6 +435,40 @@ object BackupService {
         }
     }
 
+    // ─── List restorable files (for the restore picker) ──────
+
+    suspend fun listCloudFiles(): CloudListResult = withContext(Dispatchers.IO) {
+        val code = clientCode() ?: return@withContext CloudListResult(error = "Sign in to Pro first.")
+        if (!VaultApi.isLoggedIn()) {
+            if (VaultApi.login(code) is VaultApi.Result.Error) {
+                return@withContext CloudListResult(error = "Couldn't reach the backup server. Check your connection.")
+            }
+        }
+        if (!BackupCrypto.hasRecoveryPhrase()) {
+            return@withContext CloudListResult(error = "Recovery phrase required to read your backup.")
+        }
+        val index = downloadRemoteIndex(code)
+            ?: return@withContext CloudListResult(error = "Couldn't read your backup. Check your recovery phrase and connection.")
+
+        val files = index.files
+            .filter { it.serverFileId.isNotBlank() }
+            .map { m ->
+                val thumb = m.thumbnail?.let {
+                    try { android.util.Base64.decode(it, android.util.Base64.NO_WRAP) } catch (_: Exception) { null }
+                }
+                CloudFileInfo(
+                    id = m.id,
+                    name = m.originalName,
+                    fileType = m.fileType,
+                    sizeBytes = m.sizeBytes,
+                    folderId = m.folderId,
+                    thumbnailBytes = thumb
+                )
+            }
+        Log.d(TAG, "listCloudFiles: ${files.size} restorable file(s)")
+        CloudListResult(files = files)
+    }
+
     // ─── Get Backup Status ────────────────────────────────────
 
     fun getStatus(): BackupStatus {
@@ -391,17 +485,57 @@ object BackupService {
         )
     }
 
+    // ─── Storage usage ─────────────────────────────────────────
+
+    suspend fun getStorageUsage(): VaultStorageUsage? = withContext(Dispatchers.IO) {
+        val code = clientCode() ?: return@withContext null
+        if (!VaultApi.isLoggedIn()) {
+            if (VaultApi.login(code) is VaultApi.Result.Error) return@withContext null
+        }
+        when (val r = VaultApi.getUsage()) {
+            is VaultApi.Result.Success -> VaultStorageUsage(r.value.usedBytes, r.value.quotaBytes)
+            is VaultApi.Result.Error -> {
+                Log.w(TAG, "getStorageUsage failed: ${r.message}")
+                null
+            }
+        }
+    }
+
+    /**
+     * Best-effort small JPEG preview (base64) for a file, used only to populate
+     * the cloud index so a restoring device can show a picker. Returns null for
+     * non-visual files or when no cached thumbnail is available.
+     */
+    private fun thumbnailB64(entry: VaultFileEntry): String? = try {
+        VaultStorage.getThumbnail(entry, null)
+            ?.let { android.util.Base64.encodeToString(it, android.util.Base64.NO_WRAP) }
+    } catch (e: Exception) {
+        Log.w(TAG, "thumbnailB64 failed for ${entry.id}: ${e.message}")
+        null
+    }
+
     // ─── Remote Encrypted Index helpers ───────────────────────
 
     /**
      * Downloads + decrypts the remote index.
      *
-     * Strategy (defensive against orphaned blobs from previous sessions):
-     *  1. Try the cached meta fileId from prefs (fast path for known-good).
-     *  2. If that fails, list every meta-mime blob on the server, sorted
-     *     newest-first, and try each one until one decrypts cleanly.
-     *  3. The first one that decrypts wins — it's the authoritative index
-     *     for the current key derivation. Its fileId is cached in prefs.
+     * The vault backend is occasionally flaky (transient 503s on the presigned
+     * GET/PUT URLs). That means a freshly-uploaded meta blob can succeed
+     * server-side while its upload/complete response is lost — leaving
+     * [appPrefs.vaultMetaFileId] pointing at the *previous* meta even though a
+     * newer, more complete one now exists on the server. If we blindly trusted
+     * the cached id we'd happily decrypt that stale meta and wrongly conclude
+     * there's "nothing to restore".
+     *
+     * Strategy (correctness over a couple of extra GETs):
+     *  1. Enumerate every meta-mime blob on the server (newest-first) plus the
+     *     cached id, de-duplicated.
+     *  2. Download + decrypt every candidate we can.
+     *  3. Pick the most authoritative index: newest [BackupIndex.lastBackupAtMs]
+     *     wins, tie-broken by the larger file count. (Server `createdAt`
+     *     timestamps can be missing/unparseable, so we trust the decrypted
+     *     content, not list metadata.)
+     *  4. Cache the winner's fileId so the next incremental update targets it.
      */
     private fun downloadRemoteIndex(clientCode: String): BackupIndex? {
         val indexKey = BackupCrypto.deriveIndexEncKey(clientCode)
@@ -421,44 +555,60 @@ object BackupService {
             }
         }
 
-        // Fast path: cached id
+        // Build an ordered, de-duplicated candidate list: cached id first (it's
+        // usually the right one and saves a list round-trip on the happy path),
+        // then every meta blob the server knows about, newest-first.
         val cached = appPrefs.vaultMetaFileId.get()
-        if (!cached.isNullOrBlank()) {
-            when (val r = VaultApi.downloadBlob(cached)) {
-                is VaultApi.Result.Success -> tryDecrypt(cached, r.value)?.let {
-                    Log.d(TAG, "Meta decrypted via cached fileId $cached")
-                    return it
-                }
-                is VaultApi.Result.Error -> Log.w(TAG, "Cached meta fileId fetch failed: ${r.message}")
-            }
-        }
+        val candidateIds = LinkedHashSet<String>()
+        if (!cached.isNullOrBlank()) candidateIds.add(cached)
+        candidateIds.addAll(VaultApi.findMetaFiles())
 
-        // Slow path: try every meta-mime blob newest-first
-        val candidates = VaultApi.findMetaFiles()
-        if (candidates.isEmpty()) {
+        if (candidateIds.isEmpty()) {
             Log.w(TAG, "downloadRemoteIndex: no meta-mime blobs on server")
             return null
         }
-        // Skip the cached id we already tried.
-        val toTry = if (!cached.isNullOrBlank()) candidates.filterNot { it == cached } else candidates
-        for (candidateId in toTry) {
-            when (val r = VaultApi.downloadBlob(candidateId)) {
-                is VaultApi.Result.Success -> {
-                    val index = tryDecrypt(candidateId, r.value)
-                    if (index != null) {
-                        Log.d(TAG, "Meta decrypted from candidate $candidateId — caching")
-                        appPrefs.vaultMetaFileId.set(candidateId)
-                        return index
-                    }
-                }
+
+        // Decrypt every candidate and keep the most authoritative one. We do NOT
+        // short-circuit on the first decrypt: a stale-but-valid meta must lose to
+        // a newer one that actually contains the user's backed-up files.
+        var best: BackupIndex? = null
+        var bestId: String? = null
+        var decrypted = 0
+        for (id in candidateIds) {
+            val blob = when (val r = VaultApi.downloadBlob(id)) {
+                is VaultApi.Result.Success -> r.value
                 is VaultApi.Result.Error -> {
-                    Log.w(TAG, "Failed to download candidate $candidateId: ${r.message}")
+                    Log.w(TAG, "downloadRemoteIndex: fetch failed for $id: ${r.message}")
+                    continue
                 }
+            }
+            val index = tryDecrypt(id, blob) ?: continue
+            decrypted++
+            val isBetter = best == null ||
+                index.lastBackupAtMs > best!!.lastBackupAtMs ||
+                (index.lastBackupAtMs == best!!.lastBackupAtMs && index.files.size > best!!.files.size)
+            if (isBetter) {
+                best = index
+                bestId = id
             }
         }
 
-        Log.w(TAG, "downloadRemoteIndex: tried ${toTry.size + if (!cached.isNullOrBlank()) 1 else 0} candidate(s), none decrypted")
-        return null
+        if (best == null || bestId == null) {
+            Log.w(TAG, "downloadRemoteIndex: ${candidateIds.size} candidate(s), none decrypted")
+            return null
+        }
+
+        if (bestId != cached) {
+            Log.d(
+                TAG,
+                "downloadRemoteIndex: selected meta $bestId over cached '${cached ?: ""}' " +
+                    "(files=${best!!.files.size}, lastBackupAtMs=${best!!.lastBackupAtMs}) — re-caching"
+            )
+            appPrefs.vaultMetaFileId.set(bestId)
+        } else {
+            Log.d(TAG, "downloadRemoteIndex: cached meta $bestId is authoritative (files=${best!!.files.size}, decrypted=$decrypted)")
+        }
+        return best
     }
 
     private fun updateRemoteIndex(
@@ -478,6 +628,9 @@ object BackupService {
                 val prev = previousFilesById[e.id]
                 val serverId = when {
                     addition?.first == e.id -> addition.second
+                    // Prefer the locally-persisted server id — this survives transient
+                    // failures to download the previous remote index.
+                    e.serverFileId.isNotBlank() -> e.serverFileId
                     prev != null && prev.serverFileId.isNotBlank() -> prev.serverFileId
                     else -> ""
                 }
@@ -490,10 +643,20 @@ object BackupService {
                     mimeType = e.mimeType,
                     isDoubleEncrypted = e.isDoubleEncrypted,
                     addedAtMs = e.addedAtMs,
-                    serverFileId = serverId
+                    serverFileId = serverId,
+                    // Carry the previous thumbnail forward; only (re)generate when missing
+                    // so the restore picker can show real previews without re-decrypting.
+                    thumbnail = prev?.thumbnail ?: thumbnailB64(e)
                 )
             }.let { list ->
                 if (removalEntryId != null) list.filter { it.id != removalEntryId } else list
+            }.filter { meta ->
+                // Never write an entry that isn't actually in the cloud — a blank
+                // serverFileId would otherwise surface as a restore error later.
+                if (meta.serverFileId.isBlank()) {
+                    Log.w(TAG, "updateRemoteIndex: dropping ${meta.id} (no serverFileId — not uploaded)")
+                    false
+                } else true
             }
 
             val newIndex = BackupIndex(

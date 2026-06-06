@@ -81,6 +81,16 @@ object VaultApi {
     @Serializable private data class CompleteReq(val fileId: String)
     @Serializable private data class DownloadResp(val downloadUrl: String)
 
+    @Serializable private data class UsageResp(
+        val clientCode: String = "",
+        val usedBytes: Long = 0L,
+        // Quota is reported in GB (may be fractional); converted to bytes for the UI.
+        val quotaGb: Double = 0.0
+    )
+
+    /** Tracked vault usage vs. the account quota, both in bytes. */
+    data class UsageInfo(val usedBytes: Long, val quotaBytes: Long)
+
     /**
      * One entry from `GET /files`. Parsed defensively because the backend's
      * exact field names + types aren't formally documented.
@@ -217,6 +227,26 @@ object VaultApi {
 
         val bytes = getBytes(ur.downloadUrl) ?: return Result.Error(-1, "Presigned GET failed")
         return Result.Success(bytes)
+    }
+
+    // ─── Usage / quota ─────────────────────────────────────────
+
+    /**
+     * Returns the account's tracked vault usage and total quota (both bytes).
+     * `GET /usage → {clientCode, usedBytes, quotaGb}`.
+     */
+    fun getUsage(): Result<UsageInfo> {
+        ensureLoggedIn()?.let { return Result.Error(401, it) }
+        val (s, e) = getJsonRaw("$BASE_URL/usage")
+        if (s == null) return Result.Error(-1, e ?: "usage failed")
+        return try {
+            val r = json.decodeFromString<UsageResp>(s)
+            val quotaBytes = (r.quotaGb * 1073741824.0).toLong()
+            Result.Success(UsageInfo(usedBytes = r.usedBytes, quotaBytes = quotaBytes))
+        } catch (ex: Exception) {
+            Log.e(TAG, "getUsage: bad response — body=${s.take(300)}", ex)
+            Result.Error(-1, "Bad usage response: ${ex.message}")
+        }
     }
 
     // ─── Delete ────────────────────────────────────────────────
@@ -427,15 +457,31 @@ object VaultApi {
         }
     }
 
+    /**
+     * Downloads raw bytes from a presigned URL with a small retry, since these
+     * URLs are valid for ~5 minutes and transient B2 GET failures are common.
+     * Logs the HTTP status / exception so a failure isn't silent.
+     */
     private fun getBytes(url: String): ByteArray? {
-        return try {
-            val rb = Request.Builder().url(url).header("Accept", "*/*")
-            http.newCall(rb.build()).execute().use { resp ->
-                if (resp.isSuccessful) resp.body?.bytes() else null
+        val maxAttempts = 3
+        for (attempt in 1..maxAttempts) {
+            try {
+                val rb = Request.Builder().url(url).header("Accept", "*/*")
+                http.newCall(rb.build()).execute().use { resp ->
+                    if (resp.isSuccessful) {
+                        return resp.body?.bytes()
+                    } else {
+                        Log.w(TAG, "GET-bytes attempt $attempt/$maxAttempts → HTTP ${resp.code}")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "GET-bytes attempt $attempt/$maxAttempts threw ${e.javaClass.simpleName}: ${e.message}")
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "GET-bytes $url failed", e)
-            null
+            if (attempt < maxAttempts) {
+                try { Thread.sleep(400L * attempt) } catch (_: InterruptedException) { Thread.currentThread().interrupt() }
+            }
         }
+        Log.e(TAG, "GET-bytes failed after $maxAttempts attempts")
+        return null
     }
 }

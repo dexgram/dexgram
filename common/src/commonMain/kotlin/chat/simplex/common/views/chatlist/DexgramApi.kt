@@ -39,6 +39,27 @@ data class SubscriptionResponse(
 )
 
 @Serializable
+data class DexgramDevice(
+    val deviceId: String = "",
+    val name: String = "",
+    val deviceName: String = "",
+    val platform: String = "",
+    val model: String = "",
+    val isActive: Boolean = false,
+    val lastSeenAt: String? = null,
+    val createdAt: String? = null
+) {
+    /** Best display label across the backend's possible naming fields. */
+    val displayName: String
+        get() = listOf(name, deviceName, model, platform).firstOrNull { it.isNotBlank() } ?: "Device"
+}
+
+@Serializable
+data class DevicesResponse(
+    val devices: List<DexgramDevice> = emptyList()
+)
+
+@Serializable
 data class GooglePurchaseSubscription(
     val status: String = "",
     val planCode: String = "",
@@ -134,6 +155,33 @@ object DexgramApi {
                     ApiResult.Error("Session expired")
                 }
             }
+        } catch (e: Exception) {
+            ApiResult.Error("Connection failed")
+        }
+    }
+
+    /**
+     * Lists the devices registered to this Dexgram (chat) account.
+     * `GET /v1/devices/dexgram → {devices: [{isActive, ...}, ...]}`.
+     * Relogs in once on a 401-style failure, mirroring [checkSubscription].
+     */
+    suspend fun getDevices(): ApiResult<List<DexgramDevice>> = withContext(Dispatchers.IO) {
+        try {
+            val token = appPrefs.dexgramToken.get() ?: ""
+            if (token.isBlank()) return@withContext ApiResult.Error("Not logged in")
+
+            fun fetch(tok: String): String? = SecureHttp.get(
+                "$BASE_URL/v1/devices/dexgram",
+                mapOf("Authorization" to "Bearer $tok")
+            )
+
+            var body = fetch(token)
+            if (body == null && tryRelogin()) {
+                body = fetch(appPrefs.dexgramToken.get() ?: "")
+            }
+            if (body == null) return@withContext ApiResult.Error("Session expired")
+
+            ApiResult.Success(json.decodeFromString<DevicesResponse>(body).devices)
         } catch (e: Exception) {
             ApiResult.Error("Connection failed")
         }

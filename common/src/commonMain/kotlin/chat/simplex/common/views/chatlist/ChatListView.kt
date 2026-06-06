@@ -33,7 +33,10 @@ import androidx.compose.ui.text.*
 import dev.icerock.moko.resources.compose.painterResource
 import dev.icerock.moko.resources.compose.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -83,6 +86,30 @@ sealed class ActiveFilter {
 // ═══════════════════════════════════════════════════════════════
 //  PREMIUM — backed by Dexgram Subscription API
 // ═══════════════════════════════════════════════════════════════
+
+/**
+ * Renders the raw 16-digit Pro code grouped in fours ("1234 5678 9012 3456")
+ * for readability, while the underlying field value stays as plain digits.
+ */
+private val ProCodeVisualTransformation = VisualTransformation { text ->
+  val digits = text.text
+  val grouped = buildString {
+    digits.forEachIndexed { i, c ->
+      append(c)
+      if (i % 4 == 3 && i != digits.lastIndex) append(' ')
+    }
+  }
+  val offsetMapping = object : OffsetMapping {
+    override fun originalToTransformed(offset: Int): Int {
+      if (offset <= 0) return 0
+      return offset + (offset - 1) / 4
+    }
+    override fun transformedToOriginal(offset: Int): Int {
+      return (offset - offset / 5).coerceIn(0, digits.length)
+    }
+  }
+  TransformedText(AnnotatedString(grouped), offsetMapping)
+}
 
 private fun premiumRemainingDays(): Int {
   val activatedAt = appPrefs.premiumActivatedAt.get()
@@ -613,6 +640,8 @@ private fun PremiumUpgradeDialog(onDismiss: () -> Unit, onActivated: (Int) -> Un
           },
           enabled = !isLoading && !googleLoading,
           singleLine = true,
+          // Display grouped as "1234 5678 9012 3456" while keeping the raw 16 digits.
+          visualTransformation = ProCodeVisualTransformation,
           textStyle = TextStyle(
             fontSize = 20.sp,
             fontFamily = DMSans,
@@ -974,7 +1003,7 @@ fun ChatListView(chatModel: ChatModel, userPickerState: MutableStateFlow<Animate
         NewChatSheetFloatingButton(oneHandUI, stopped)
       }
     }
-    
+
     // Floating action buttons - above bottom navigation (Shredgram ChatActionButtons style)
     Column(
       modifier = Modifier
@@ -1004,9 +1033,9 @@ fun ChatListView(chatModel: ChatModel, userPickerState: MutableStateFlow<Animate
           modifier = Modifier.size(24.dp)
         )
       }
-      
+
     }
-    
+
     // Search Overlay - DISABLED (using new inline search instead)
     // The new search bar in toolbar handles all search functionality
     if (false && showSearchOverlay.value) {
@@ -1015,7 +1044,7 @@ fun ChatListView(chatModel: ChatModel, userPickerState: MutableStateFlow<Animate
         listState = listState
       )
     }
-    
+
     // Tag List Editor Dialog - shows as bottom sheet overlay on ChatListView
     if (showTagEditor.value) {
       TagListEditorDialog(
@@ -1144,25 +1173,25 @@ private fun BoxScope.ChatListWithLoadingScreen(searchText: MutableState<TextFiel
   if (chatModel.desktopNoUserNoRemote) {
     return
   }
-  
+
   // Check if user has any real chats (Direct or Group), excluding notes/invitations
   val allChatsCount = chatModel.chats.value.size
   val realChats = chatModel.chats.value.filter { chat ->
     chat.chatInfo is ChatInfo.Direct || chat.chatInfo is ChatInfo.Group
   }
   val hasRealChats = realChats.isNotEmpty()
-  
+
   // Debug logging
-  
+
   // List all chat types
   chatModel.chats.value.forEachIndexed { index, chat ->
   }
-  
+
   // Switching users/hosts - don't show anything
   if (chatModel.switchingUsersAndHosts.value) {
     return
   }
-  
+
   // Loading state - only when chat is initializing
   if (chatModel.chatRunning.value == null && chatModel.chats.value.isEmpty()) {
     Text(
@@ -1172,13 +1201,13 @@ private fun BoxScope.ChatListWithLoadingScreen(searchText: MutableState<TextFiel
     )
     return
   }
-  
+
   // No real chats - show beautiful empty state (regardless of chatRunning state)
   if (!hasRealChats) {
     EmptyChatsView(Modifier.align(Alignment.Center), searchActive)
     return
   }
-  
+
   // Has real chats - show normal chat list
   ChatList(searchText = searchText, listState, selectedListFilter)
 }
@@ -1216,7 +1245,7 @@ fun BottomNavigationBar(
   stopped: Boolean = false
 ) {
   val isPreview = LocalInspectionMode.current
-  
+
   Column(
     modifier = modifier
       .fillMaxWidth()
@@ -1224,7 +1253,7 @@ fun BottomNavigationBar(
       .imePadding()  // Move above keyboard when it appears
   ) {
     Divider(color = MaterialTheme.colors.onSurface.copy(alpha = 0.12f), thickness = 1.dp)
-    
+
     Row(
       modifier = Modifier
         .fillMaxWidth()
@@ -1364,7 +1393,7 @@ fun NavigationTagButton(
   onLongClick: (() -> Unit)? = null
 ) {
   val shape = RoundedCornerShape(16.dp)
-  
+
   Row(
     modifier = Modifier
       .height(32.dp)
@@ -1464,22 +1493,22 @@ private fun shutdownApp() {
  */
 private fun isCompleteUsernameFormat(input: String): Boolean {
   if (input.isEmpty()) return false
-  
+
   val parts = input.split(".")
-  
+
   // Must have exactly 3 parts: base, number, domain
   if (parts.size != 3) return false
-  
+
   // First part should have letters (base name) - at least 1 character
   if (parts[0].isEmpty() || !parts[0].any { it.isLetter() }) return false
-  
+
   // Second part should be all digits - at least 1 digit
   if (parts[1].isEmpty() || !parts[1].all { it.isDigit() }) return false
-  
+
   // Third part MUST be either "inco" (private) or "link" (public) - case-insensitive
   val domain = parts[2].lowercase()
   if (domain != "inco" && domain != "link") return false
-  
+
   return true
 }
 
@@ -1520,9 +1549,9 @@ data class FoundUserInfo(
 
 @Composable
 private fun ChatListToolbar(
-  userPickerState: MutableStateFlow<AnimatedViewState>, 
-  listState: LazyListState, 
-  stopped: Boolean, 
+  userPickerState: MutableStateFlow<AnimatedViewState>,
+  listState: LazyListState,
+  stopped: Boolean,
   setPerformLA: (Boolean) -> Unit,
   showSearchOverlay: MutableState<Boolean>,
   searchText: MutableState<TextFieldValue>,
@@ -1533,20 +1562,20 @@ private fun ChatListToolbar(
 ) {
   val clipboard = LocalClipboardManager.current
   val scope = rememberCoroutineScope()
-  
+
   // Menu dropdown state - Shredgram style
   var menuExpanded by remember { mutableStateOf(false) }
   var isPublicProfileSetupCompleted by remember { mutableStateOf(chatModel.isPublicProfileSetupCompleted()) }
   var isPublicProfileCollapsed by remember { mutableStateOf(false) }
-  
+
   LaunchedEffect(chatModel.currentUser.value) {
     isPublicProfileSetupCompleted = chatModel.isPublicProfileSetupCompleted()
   }
-  
+
   // New state management for username connection flow
   val usernameConnectionState = remember { mutableStateOf<UsernameConnectionState>(UsernameConnectionState.Idle) }
   val foundUserInfo = remember { mutableStateOf<FoundUserInfo?>(null) }
-  
+
   // Monitor search text for username lookup
   val view = LocalMultiplatformView()
   LaunchedEffect(Unit) {
@@ -1554,7 +1583,7 @@ private fun ChatListToolbar(
       .distinctUntilChanged()
       .collect {
         val trimmedText = it.trim()
-        
+
         // Check if it's a complete username format:
         // - Private: "smith.789.inco"
         // - Public: "smith.123.link"
@@ -1564,13 +1593,13 @@ private fun ChatListToolbar(
             foundUserInfo.value = null
             usernameConnectionState.value = UsernameConnectionState.SearchingUsername
             hideKeyboard(view)
-            
+
             withBGApi {
               val result = UsernameAPI.lookupUsername(trimmedText)
-              
+
               // Check for address in address, oneTimeAddress, or simpleXAddress field
               val address = result?.data?.address ?: result?.data?.oneTimeAddress ?: result?.data?.simpleXAddress
-              
+
               if (result != null && result.success && result.data != null && address != null) {
                 // Found user - store info and show "Send Request" button
                 foundUserInfo.value = FoundUserInfo(
@@ -1597,22 +1626,22 @@ private fun ChatListToolbar(
         }
       }
   }
-  
+
   // Function to send connection request
   fun sendConnectionRequest() {
     val userInfo = foundUserInfo.value ?: return
-    
+
     usernameConnectionState.value = UsernameConnectionState.SendingRequest
-    
+
     withBGApi {
       try {
         val inProgress = mutableStateOf(true)
         val planResult = chatModel.controller.apiConnectPlan(chatModel.remoteHostId(), userInfo.oneTimeAddress, inProgress = inProgress)
-        
+
         if (planResult != null) {
           val (connectionLink, connectionPlan) = planResult
           val useIncognito = isPrivateUsername(userInfo.username)
-          
+
           when (connectionPlan) {
             is ConnectionPlan.ContactAddress -> {
               when (connectionPlan.contactAddressPlan) {
@@ -1649,7 +1678,7 @@ private fun ChatListToolbar(
                 is ContactAddressPlan.ContactViaAddress -> {
                   val contact = connectionPlan.contactAddressPlan.contact
                   usernameConnectionState.value = UsernameConnectionState.WaitingForAcceptance
-                  
+
                   val ok = connectContactViaAddress(chatModel, chatModel.remoteHostId(), contact.contactId, useIncognito)
                   if (ok) {
                     usernameConnectionState.value = UsernameConnectionState.Connected
@@ -1702,9 +1731,9 @@ private fun ChatListToolbar(
             }
             else -> {}
           }
-          
+
           usernameConnectionState.value = UsernameConnectionState.WaitingForAcceptance
-          
+
           val connected = connectViaUri(
             chatModel = chatModel,
             rhId = chatModel.remoteHostId(),
@@ -1724,7 +1753,7 @@ private fun ChatListToolbar(
             },
             cleanup = null
           )
-          
+
           if (!connected) {
             usernameConnectionState.value = UsernameConnectionState.Error("Failed to connect to user")
           }
@@ -1736,20 +1765,20 @@ private fun ChatListToolbar(
       }
     }
   }
-  
+
   fun sendConnectionRequestWithMode(incognito: Boolean) {
     val userInfo = foundUserInfo.value ?: return
-    
+
     usernameConnectionState.value = UsernameConnectionState.SendingRequest
-    
+
     withBGApi {
       try {
         val inProgress = mutableStateOf(true)
         val planResult = chatModel.controller.apiConnectPlan(chatModel.remoteHostId(), userInfo.oneTimeAddress, inProgress = inProgress)
-        
+
         if (planResult != null) {
           val (connectionLink, connectionPlan) = planResult
-          
+
           when (connectionPlan) {
             is ConnectionPlan.ContactAddress -> {
               when (connectionPlan.contactAddressPlan) {
@@ -1786,7 +1815,7 @@ private fun ChatListToolbar(
                 is ContactAddressPlan.ContactViaAddress -> {
                   val contact = connectionPlan.contactAddressPlan.contact
                   usernameConnectionState.value = UsernameConnectionState.WaitingForAcceptance
-                  
+
                   val ok = connectContactViaAddress(chatModel, chatModel.remoteHostId(), contact.contactId, incognito)
                   if (ok) {
                     usernameConnectionState.value = UsernameConnectionState.Connected
@@ -1839,9 +1868,9 @@ private fun ChatListToolbar(
             }
             else -> {}
           }
-          
+
           usernameConnectionState.value = UsernameConnectionState.WaitingForAcceptance
-          
+
           val connected = connectViaUri(
             chatModel = chatModel,
             rhId = chatModel.remoteHostId(),
@@ -1861,7 +1890,7 @@ private fun ChatListToolbar(
             },
             cleanup = null
           )
-          
+
           if (!connected) {
             usernameConnectionState.value = UsernameConnectionState.Error("Failed to connect to user")
           }
@@ -1873,7 +1902,7 @@ private fun ChatListToolbar(
       }
     }
   }
-  
+
   fun showPublicProfileSendRequestWarningDialog(onConfirm: () -> Unit) {
     AlertManager.shared.showAlertDialogButtonsColumn(
       title = "⚠️ Public Profile Notice",
@@ -1883,7 +1912,7 @@ private fun ChatListToolbar(
       }
     )
   }
-  
+
   // Normal toolbar layout
   Column(
     modifier = Modifier
@@ -1921,7 +1950,7 @@ private fun ChatListToolbar(
       } else {
         Spacer(Modifier.width(12.dp))
       }
-      
+
       // Search bar
       if (!searchActive.value) {
         // Collapsed state - clickable search bar
@@ -1979,7 +2008,7 @@ private fun ChatListToolbar(
               modifier = Modifier.size(20.dp)
             )
             Spacer(Modifier.width(8.dp))
-            
+
             val focusManager = LocalFocusManager.current
             val defaultToolbar = LocalTextToolbar.current
             val belowToolbar = remember(defaultToolbar) {
@@ -2025,7 +2054,7 @@ private fun ChatListToolbar(
               }
             )
             }
-      
+
       Spacer(Modifier.width(4.dp))
 
             // Paste button
@@ -2047,7 +2076,7 @@ private fun ChatListToolbar(
             }
 
       Spacer(Modifier.width(4.dp))
-      
+
             // Close button - 24dp
       IconButton(
         onClick = {
@@ -2068,7 +2097,7 @@ private fun ChatListToolbar(
               )
             }
           }
-          
+
           // Handle back button to close search
           BackHandler(enabled = searchActive.value) {
             searchText.value = TextFieldValue()
@@ -2076,9 +2105,9 @@ private fun ChatListToolbar(
           }
         }
       }
-      
+
       Spacer(Modifier.width(8.dp))
-      
+
       // Menu button with dropdown - Shredgram style
       Box {
         IconButton(
@@ -2092,7 +2121,7 @@ private fun ChatListToolbar(
           modifier = Modifier.size(24.dp)
         )
       }
-        
+
         DropdownMenu(
           expanded = menuExpanded,
           onDismissRequest = { menuExpanded = false },
@@ -2130,7 +2159,7 @@ private fun ChatListToolbar(
               color = MaterialTheme.colors.onSurface
             )
           }
-          
+
           // Settings option
           Row(
             modifier = Modifier
@@ -2161,13 +2190,13 @@ private fun ChatListToolbar(
         }
       }
     }
-    
+
     // Username connection flow UI
     UsernameConnectionCard(
       connectionState = usernameConnectionState.value,
       foundUserInfo = foundUserInfo.value,
       onSendRequest = { sendConnectionRequest() },
-      onSendRequestWithMode = { incognito -> 
+      onSendRequestWithMode = { incognito ->
         if (!incognito && appPreferences.showPublicProfileWarning.get()) {
           // Show warning dialog for public profile connection
           showPublicProfileSendRequestWarningDialog { sendConnectionRequestWithMode(incognito) }
@@ -2182,7 +2211,7 @@ private fun ChatListToolbar(
         searchText.value = TextFieldValue()
       }
     )
-    
+
     // Public + private profile cards with collapse/expand behavior
     val publicProfileWidth by animateDpAsState(
       targetValue = if (isPublicProfileCollapsed) 64.dp else 0.dp,
@@ -2410,21 +2439,21 @@ private fun ChatListToolbar(
           modifier = Modifier.size(48.dp).clip(CircleShape),
           contentScale = ContentScale.Crop
         )
-        
+
           if (!allRead) {
             unreadBadge()
           }
         }
-        
+
       Spacer(Modifier.width(8.dp))
-      
+
       // Private username with Timer - Shredgram typography
       Column(modifier = Modifier.weight(1f)) {
         val privateUsername = chatModel.getPrivateUsername() ?: "Generating..."
         val isExpired = remember { mutableStateOf(chatModel.isUsernameExpired()) }
         val isUsed = remember { mutableStateOf(chatModel.isUsernameUsed()) }
         val timeRemaining = remember { mutableStateOf(chatModel.getUsernameTimeRemaining()) }
-        
+
         LaunchedEffect(Unit) {
           while (true) {
             isExpired.value = chatModel.isUsernameExpired()
@@ -2433,7 +2462,7 @@ private fun ChatListToolbar(
             kotlinx.coroutines.delay(1000L)
           }
         }
-        
+
         if (isUsed.value || isExpired.value) {
           val message = if (isUsed.value) "Username used" else "Username expired"
           Text(
@@ -2512,7 +2541,7 @@ private fun ChatListToolbar(
           }
         }
       }
-      
+
       // Copy username button
       val clipboardPrivate = LocalClipboardManager.current
       Box(
@@ -2541,7 +2570,7 @@ private fun ChatListToolbar(
 
       // New ID button - Shredgram style with ElectricBlue500
       val isRegeneratingUsername = remember { mutableStateOf(false) }
-      
+
         Column(
         modifier = Modifier
           .size(48.dp)
@@ -2550,7 +2579,7 @@ private fun ChatListToolbar(
           .clickable(enabled = !isRegeneratingUsername.value) {
             if (isRegeneratingUsername.value) return@clickable
             isRegeneratingUsername.value = true
-            
+
             withBGApi {
               try {
                 regenerateUsernameAndAddress(chatModel) { success ->
@@ -2607,12 +2636,12 @@ private fun ChatListToolbar(
     }
 
     Spacer(Modifier.height(24.dp))
-        
+
     // Tabs section: Notes, Chats, Contacts, Groups + User Tags - Shredgram NavigationTags style
         val scope = rememberCoroutineScope()
     val userTags = remember { chatModel.userTags }
     val rhId = chatModel.remoteHostId()
-    
+
     LazyRow(
       modifier = Modifier.fillMaxWidth(),
       contentPadding = PaddingValues(horizontal = 24.dp),
@@ -2639,7 +2668,7 @@ private fun ChatListToolbar(
           }
         )
       }
-      
+
       // Chats tab
       item {
         val isChatsSelected = selectedListFilter.value == ChatListFilter.ALL_CHATS
@@ -2650,7 +2679,7 @@ private fun ChatListToolbar(
           onClick = { selectedListFilter.value = ChatListFilter.ALL_CHATS }
         )
       }
-      
+
       // Contacts tab
       item {
         val isContactsSelected = selectedListFilter.value == ChatListFilter.CONTACTS
@@ -2661,7 +2690,7 @@ private fun ChatListToolbar(
           onClick = { selectedListFilter.value = ChatListFilter.CONTACTS }
         )
       }
-      
+
       // Groups tab
       item {
         val isGroupsSelected = selectedListFilter.value == ChatListFilter.GROUPS
@@ -2672,7 +2701,7 @@ private fun ChatListToolbar(
           onClick = { selectedListFilter.value = ChatListFilter.GROUPS }
         )
       }
-      
+
       // User custom tags
       items(userTags.value) { tag ->
         val activeFilter = remember { chatModel.activeChatTagFilter }
@@ -2765,7 +2794,7 @@ private fun ChatListToolbar(
           }
         }
       }
-      
+
       // + Add button - opens tag list editor as bottom sheet overlay
       item {
         Row(
@@ -2790,7 +2819,7 @@ private fun ChatListToolbar(
         }
       }
     }
-    
+
     Spacer(Modifier.height(16.dp))
   }  // Close Column (normal toolbar)
 }
@@ -2811,7 +2840,7 @@ private fun UsernameConnectionCard(
     is UsernameConnectionState.Idle -> {
       // Nothing to show
     }
-    
+
     is UsernameConnectionState.SearchingUsername -> {
       // Searching state
       Card(
@@ -2842,7 +2871,7 @@ private fun UsernameConnectionCard(
         }
       }
     }
-    
+
     is UsernameConnectionState.UserFound -> {
       // Found user - show card with Send Request button
       Card(
@@ -2878,9 +2907,9 @@ private fun UsernameConnectionCard(
                 modifier = Modifier.size(28.dp)
               )
             }
-            
+
             Spacer(Modifier.width(12.dp))
-            
+
             // Username
             Column(modifier = Modifier.weight(1f)) {
               Text(
@@ -2895,7 +2924,7 @@ private fun UsernameConnectionCard(
                 color = MaterialTheme.colors.onSurface
               )
             }
-            
+
             // Close button
             IconButton(
               onClick = onCancel,
@@ -2909,13 +2938,13 @@ private fun UsernameConnectionCard(
         )
       }
     }
-    
+
           Spacer(Modifier.height(16.dp))
-          
+
           // For .link usernames, show two buttons: Send Incognito and Send Public
           // For .inco usernames, show only Send Request button
           val isLinkUsername = !isPrivateUsername(connectionState.username)
-          
+
           if (isLinkUsername) {
             // Two buttons for .link usernames
             Row(
@@ -2947,7 +2976,7 @@ private fun UsernameConnectionCard(
         )
                 }
       }
-      
+
               // Send Public button
       Button(
                 onClick = { onSendRequestWithMode(false) },
@@ -3002,7 +3031,7 @@ private fun UsernameConnectionCard(
         }
       }
     }
-    
+
     is UsernameConnectionState.SendingRequest -> {
       // Sending request - show progress
       ConnectionProgressCard(
@@ -3013,7 +3042,7 @@ private fun UsernameConnectionCard(
         onCancel = onCancel
         )
       }
-      
+
     is UsernameConnectionState.WaitingForAcceptance -> {
       // Waiting for other user to accept
       ConnectionProgressCard(
@@ -3024,7 +3053,7 @@ private fun UsernameConnectionCard(
         onCancel = onCancel
       )
     }
-    
+
     is UsernameConnectionState.Connected -> {
       // Request sent successfully
       Card(
@@ -3064,7 +3093,7 @@ private fun UsernameConnectionCard(
         }
       }
     }
-    
+
     is UsernameConnectionState.Error -> {
       // Error state
       Card(
@@ -3158,9 +3187,9 @@ private fun ConnectionProgressCard(
         )
       }
     }
-    
+
       Spacer(Modifier.height(8.dp))
-      
+
       // Progress bar
       LinearProgressIndicator(
         progress = currentStep.toFloat() / totalSteps.toFloat(),
@@ -3171,9 +3200,9 @@ private fun ConnectionProgressCard(
         backgroundColor = MaterialTheme.colors.onSurface.copy(alpha = 0.1f),
         color = MaterialTheme.colors.primary
       )
-      
+
       Spacer(Modifier.height(16.dp))
-      
+
       // Step info
       Row(
         verticalAlignment = Alignment.CenterVertically
@@ -3212,7 +3241,7 @@ private fun SearchOverlayView(
   val searchChatFilteredBySimplexLink = remember { mutableStateOf<String?>(null) }
   val isSearchingUsername = remember { mutableStateOf(false) }
   val usernameSearchError = remember { mutableStateOf<String?>(null) }
-  
+
   Box(
             modifier = Modifier
       .fillMaxSize()
@@ -3239,10 +3268,10 @@ private fun SearchOverlayView(
             tint = MaterialTheme.colors.primary
           )
         }
-        
+
         val focusRequester = remember { FocusRequester() }
         var focused by remember { mutableStateOf(false) }
-        
+
         SearchTextField(
           Modifier
             .weight(1f)
@@ -3256,7 +3285,7 @@ private fun SearchOverlayView(
         ) {
           searchText.value = searchText.value.copy(it)
         }
-        
+
         val hasText = remember { derivedStateOf { searchText.value.text.isNotEmpty() } }
         if (hasText.value) {
           IconButton(onClick = { searchText.value = TextFieldValue() }) {
@@ -3279,7 +3308,7 @@ private fun SearchOverlayView(
             ToggleFilterEnabledButton()
           }
         }
-        
+
         val focusManager = LocalFocusManager.current
         val keyboardState = getKeyboardState()
         LaunchedEffect(keyboardState.value) {
@@ -3287,7 +3316,7 @@ private fun SearchOverlayView(
             focusManager.clearFocus()
           }
         }
-        
+
         val view = LocalMultiplatformView()
         LaunchedEffect(Unit) {
           focusRequester.requestFocus()
@@ -3295,7 +3324,7 @@ private fun SearchOverlayView(
             .distinctUntilChanged()
             .collect {
               val trimmedText = it.trim()
-              
+
               // Check if it's a complete username format:
               // - Private: "smith.789.inco"
               // - Public: "smith.123.link"
@@ -3304,27 +3333,27 @@ private fun SearchOverlayView(
                 isSearchingUsername.value = true
                 usernameSearchError.value = null
                 hideKeyboard(view)
-                
+
                 withBGApi {
                   val result = UsernameAPI.lookupUsername(trimmedText)
                   isSearchingUsername.value = false
-                  
+
                   // Check for address in address, oneTimeAddress, or simpleXAddress field
                   val address = result?.data?.address ?: result?.data?.oneTimeAddress ?: result?.data?.simpleXAddress
-                  
+
                   if (result != null && result.success && result.data != null && address != null) {
                     // Found user - get connection plan and connect
-                    
+
                     val inProgress = mutableStateOf(true)
                     val planResult = chatModel.controller.apiConnectPlan(chatModel.remoteHostId(), address, inProgress = inProgress)
-                    
+
                     if (planResult != null) {
                       val (connectionLink, connectionPlan) = planResult
-                      
+
                       // Handle special cases
                       var shouldConnect = true
                       val useIncognito = isPrivateUsername(trimmedText)
-                      
+
                       when (connectionPlan) {
                         is ConnectionPlan.ContactAddress -> {
                           when (connectionPlan.contactAddressPlan) {
@@ -3429,9 +3458,9 @@ private fun SearchOverlayView(
                         }
                         else -> { /* proceed */ }
                       }
-                      
+
                       if (shouldConnect) {
-                        
+
                         val connected = connectViaUri(
                           chatModel = chatModel,
                           rhId = chatModel.remoteHostId(),
@@ -3444,7 +3473,7 @@ private fun SearchOverlayView(
                           },
                           cleanup = null
                         )
-                        
+
                         if (!connected) {
                           usernameSearchError.value = "Failed to connect to user"
                         }
@@ -3485,9 +3514,9 @@ private fun SearchOverlayView(
             }
         }
       }
-      
+
       Divider()
-      
+
       // Show username search status
       if (isSearchingUsername.value) {
         Box(
@@ -3512,12 +3541,12 @@ private fun SearchOverlayView(
           )
         }
       }
-      
+
       // Search results
       val allChats = remember { chatModel.chats }
       val activeFilter = remember { chatModel.activeChatTagFilter }
       val chats = filteredChats(searchShowingSimplexLink, searchChatFilteredBySimplexLink, searchText.value.text, allChats.value.toList(), activeFilter.value)
-      
+
       if (chats.isEmpty() && chatModel.chats.value.isNotEmpty()) {
         Box(Modifier.fillMaxSize().padding(horizontal = DEFAULT_PADDING), contentAlignment = Alignment.Center) {
           Text(
@@ -3657,7 +3686,7 @@ expect fun ActiveCallInteractiveArea(call: Call)
 fun connectIfOpenedViaUri(rhId: Long?, uri: String, chatModel: ChatModel) {
   // Decode shredgram encrypted links before processing
   val processedUri = chat.simplex.common.platform.ShredgramLinkEncoder.processUri(uri)
-  
+
   if (chatModel.currentUser.value == null) {
     chatModel.appOpenUrl.value = rhId to processedUri
   } else {
@@ -3726,7 +3755,7 @@ fun BoxScope.NavigationBarBackground(modifier: Modifier, color: Color = Material
 
 @Composable
 private fun BoxScope.ChatList(searchText: MutableState<TextFieldValue>, listState: LazyListState, selectedListFilter: MutableState<ChatListFilter> = mutableStateOf(ChatListFilter.ALL_CHATS)) {
-  
+
   var scrollDirection by remember { mutableStateOf(ScrollDirection.Idle) }
   var previousIndex by remember { mutableStateOf(0) }
   var previousScrollOffset by remember { mutableStateOf(0) }
@@ -3764,7 +3793,7 @@ private fun BoxScope.ChatList(searchText: MutableState<TextFieldValue>, listStat
   val chats = filteredChats(searchShowingSimplexLink, searchChatFilteredBySimplexLink, searchText.value.text, allChats.value.toList(), activeFilter.value, selectedListFilter.value)
   val topPaddingToContent = topPaddingToContent(false)
   val blankSpaceSize = if (oneHandUI.value) WindowInsets.statusBars.asPaddingValues().calculateTopPadding() else topPaddingToContent
-  
+
   // Check if we should show empty state BEFORE rendering the list
   val hasRealChats = chatModel.chats.value.any { it.chatInfo is ChatInfo.Direct || it.chatInfo is ChatInfo.Group }
   if (chats.isEmpty()) {
@@ -3805,7 +3834,7 @@ private fun BoxScope.ChatList(searchText: MutableState<TextFieldValue>, listStat
       item { Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars).padding(bottom = if (oneHandUI.value) AppBarHeight * fontSizeSqrtMultiplier else 0.dp)) }
     }
   }
-      
+
       // Shredgram: Top gradient overlay (32dp height, white to transparent)
       Box(
         modifier = Modifier
@@ -3821,7 +3850,7 @@ private fun BoxScope.ChatList(searchText: MutableState<TextFieldValue>, listStat
             )
           )
       )
-      
+
       Box(
         modifier = Modifier
           .fillMaxWidth()
@@ -3838,7 +3867,7 @@ private fun BoxScope.ChatList(searchText: MutableState<TextFieldValue>, listStat
       )
     }
   }
-  
+
   LaunchedEffect(activeFilter.value) {
     searchText.value = TextFieldValue("")
   }
@@ -3864,24 +3893,24 @@ private fun getRandomDpAvatar(id: Int): ImageResource {
 @Composable
 fun EmptyChatsView(modifier: Modifier = Modifier, searchActive: MutableState<Boolean>? = null) {
   val isPreview = LocalInspectionMode.current
-  
+
   val oneHandUI = if (isPreview) {
     remember { mutableStateOf(true) }
   } else {
     remember { appPrefs.oneHandUI.state }
   }
-  
+
   // Randomly select 6 different avatar IDs from 1-10
   val randomAvatarIds = remember {
     (1..10).shuffled().take(6)
   }
-  
+
   // Avatar colors for preview fallback
   val avatarColors = listOf(
     Color(0xFFE91E63), Color(0xFF9C27B0), Color(0xFF2196F3),
     Color(0xFF4CAF50), Color(0xFFFF9800), Color(0xFF607D8B)
   )
-  
+
   Box(
     modifier = modifier
       .fillMaxWidth()
@@ -3935,9 +3964,9 @@ fun EmptyChatsView(modifier: Modifier = Modifier, searchActive: MutableState<Boo
         }
       }
     }
-    
+
     Spacer(Modifier.height(16.dp))
-    
+
     // Title - Shredgram titleMedium
     Text(
       "You have no chats yet.",
@@ -3947,7 +3976,7 @@ fun EmptyChatsView(modifier: Modifier = Modifier, searchActive: MutableState<Boo
       color = MaterialTheme.colors.secondary,
       textAlign = TextAlign.Center
     )
-    
+
     Text(
       "Search by user name or phone number to start chatting with friends.",
       fontSize = 16.sp,
@@ -3956,9 +3985,9 @@ fun EmptyChatsView(modifier: Modifier = Modifier, searchActive: MutableState<Boo
       color = MaterialTheme.colors.secondary,
       textAlign = TextAlign.Center
     )
-    
+
     Spacer(Modifier.height(16.dp))
-    
+
     // Search button - Shredgram style
     Button(
       onClick = {
@@ -4331,10 +4360,10 @@ fun filteredChats(
   } else {
     val s = if (searchShowingSimplexLink.value) "" else searchText.trim().lowercase()
     if (s.isEmpty())
-      chats.filter { chat -> 
-        chat.id == chatModel.chatId.value || 
-        (!chat.chatInfo.chatDeleted && 
-         !chat.chatInfo.contactCard && 
+      chats.filter { chat ->
+        chat.id == chatModel.chatId.value ||
+        (!chat.chatInfo.chatDeleted &&
+         !chat.chatInfo.contactCard &&
          // Exclude private notes, contact requests, and pending connections from main list
          chat.chatInfo !is ChatInfo.Local &&
          chat.chatInfo !is ChatInfo.ContactRequest &&
@@ -4423,7 +4452,7 @@ fun scrollToBottom(scope: CoroutineScope, listState: LazyListState) {
 fun PublicProfileSendRequestWarningDialog(onConfirm: () -> Unit) {
   val dontShowAgain = remember { mutableStateOf(false) }
   val uriHandler = LocalUriHandler.current
-  
+
   Column(
     modifier = Modifier.fillMaxWidth(),
     verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -4435,7 +4464,7 @@ fun PublicProfileSendRequestWarningDialog(onConfirm: () -> Unit) {
       textAlign = TextAlign.Start,
       fontSize = 14.sp
     )
-    
+
     Text(
       "In some countries, people are targeted not because of encryption, but because of social-graph analysis.",
       style = MaterialTheme.typography.body1,
@@ -4444,7 +4473,7 @@ fun PublicProfileSendRequestWarningDialog(onConfirm: () -> Unit) {
       fontWeight = FontWeight.Medium,
       color = MaterialTheme.colors.error
     )
-    
+
     Text(
       "Be careful who you interact with when using this profile.",
       style = MaterialTheme.typography.body1,
@@ -4452,12 +4481,12 @@ fun PublicProfileSendRequestWarningDialog(onConfirm: () -> Unit) {
       fontSize = 14.sp,
       fontWeight = FontWeight.SemiBold
     )
-    
+
     // Learn more link
     Row(
       modifier = Modifier
         .fillMaxWidth()
-        .clickable { 
+        .clickable {
           uriHandler.openUriCatching("https://shredgram.com/publicvsprivate")
         }
         .padding(vertical = 8.dp),
@@ -4479,13 +4508,13 @@ fun PublicProfileSendRequestWarningDialog(onConfirm: () -> Unit) {
         modifier = Modifier.size(16.dp)
       )
     }
-    
+
     // Don't show again checkbox
     Row(
       verticalAlignment = Alignment.CenterVertically,
       modifier = Modifier
         .fillMaxWidth()
-        .clickable { 
+        .clickable {
           dontShowAgain.value = !dontShowAgain.value
         }
         .padding(vertical = 8.dp)
@@ -4504,7 +4533,7 @@ fun PublicProfileSendRequestWarningDialog(onConfirm: () -> Unit) {
         color = MaterialTheme.colors.onBackground
       )
     }
-    
+
     // Buttons
     Column(Modifier.fillMaxWidth()) {
       SectionItemView({
@@ -4522,7 +4551,7 @@ fun PublicProfileSendRequestWarningDialog(onConfirm: () -> Unit) {
           fontWeight = FontWeight.Medium
         )
       }
-      
+
       SectionItemView({
         AlertManager.shared.hideAlert()
       }) {

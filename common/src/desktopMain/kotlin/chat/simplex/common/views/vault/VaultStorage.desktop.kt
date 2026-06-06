@@ -11,7 +11,9 @@ actual object VaultStorage {
     actual fun getIndex(): VaultIndex = VaultIndex()
     actual fun isAvailable(): Boolean = false
     actual fun getRawVaultFile(entry: VaultFileEntry): ByteArray? = null
+    actual fun getThumbnail(entry: VaultFileEntry, folderPassword: String?): ByteArray? = null
     actual fun markFileBacked(entryId: String, backed: Boolean) {}
+    actual fun setFileServerId(entryId: String, serverId: String) {}
     actual fun restoreFolder(folder: VaultFolder) {}
     actual fun restoreVaultFile(entryId: String, rawVaultBytes: ByteArray, entry: VaultFileEntry) {}
 }
