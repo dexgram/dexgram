@@ -690,17 +690,17 @@ private fun LegalContentCardView(
       ) {
         val body = if (selectedTab == 0) {
           // Terms content
-          "Fognest is the first communication network based on a new protocol stack that builds on the same ideas of complete openness and decentralization as email and web, with the focus on providing security and privacy of communications, and without compromising on usability.\n\n" +
-          "Fognest messaging protocol is the first protocol that has no user profile IDs of any kind, not even random numbers, cryptographic keys or hashes that identify the users. Fognest apps allow their users to send messages and files via relay server infrastructure. Relay server owners and operators do not have any access to your messages, thanks to double-ratchet end-to-end encryption algorithm (also known as Signal algorithm - do not confuse with Signal protocols or platform) and additional encryption layers, and they also have no access to your profile and contacts - as they do not host user accounts.\n\n" +
-          "Double ratchet algorithm has such important properties as forward secrecy, sender repudiation and break-in recovery (also known as post-compromise security).\n\n" +
-          "If you believe that any part of this document is not aligned with SimpleX network mission or values, please raise it via email or chat."
+          "DEXGRAM is designed to minimize data collection and protect your communications by default. By using DEXGRAM, you agree to use the service responsibly and in compliance with applicable law.\n\n" +
+          "DEXGRAM is provided as is, without warranties, while we continue to refine the platform with the community. Features, pricing, and availability may evolve over time, and open-source licenses apply to the components we build on.\n\n" +
+          "You agree not to use DEXGRAM for unlawful, abusive, or harmful activity. You are responsible for how you use the app and should use it at your own discretion.\n\n" +
+          "DEXGRAM does not provide legal, financial, investment, or tax advice. Wallet, DeFi, VPN, and decentralized network features may rely on third-party or open-source infrastructure governed by separate terms."
         } else {
           // Privacy content
-          "Your privacy is our top priority. Fognest is designed from the ground up to protect your personal information and communications.\n\n" +
-          "We do not collect any personal data. Your messages are end-to-end encrypted, meaning only you and the intended recipient can read them.\n\n" +
-          "Fognest does not store your messages on our servers. All data is stored locally on your device and transmitted securely.\n\n" +
-          "We do not track your location, contacts, or any other sensitive information. Your communications remain private and secure.\n\n" +
-          "For more details about our privacy practices, please contact our support team."
+          "DEXGRAM is built to keep your communications and financial activity private by default. Messages and attachments are end-to-end encrypted, and core communication features do not require a phone number or KYC.\n\n" +
+          "We collect as little data as possible. We do not sell personal data, run advertising trackers, or include message content in diagnostics. Optional diagnostics are used only to improve reliability and security.\n\n" +
+          "DEXGRAM is designed to minimize metadata and give users control over their local data. VPN traffic is encrypted and designed so browsing activity cannot be inspected by DEXGRAM.\n\n" +
+          "DEXGRAM may rely on trusted open-source projects and infrastructure providers, including wallet SDKs, VPN protocols, and decentralized networks. Those services may be governed by their own policies.\n\n" +
+          "For legal or privacy questions, contact legal@dexgram.com."
         }
         
         // Content text - Shredgram: bodySmall (DMSans Normal 12sp, lineHeight 1.5)
