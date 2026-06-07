@@ -96,7 +96,7 @@ fun OnboardingPager(m: ChatModel) {
       iconName = "quantum"
     ),
     FeatureOnboardingData(
-      title = "Physical Passkey security",
+      title = "Physical YubiKey (PIV) security",
       description = "Utilizes hardware-based authentication keys stored physically, safeguarding against phone hacking, and ensuring secure access without relying on vulnerable software.",
       currentStep = 3,
       nextStage = OnboardingStage.Step2_4_ChooseUnlockMethod,
@@ -533,7 +533,7 @@ fun FeatureDecentralizedOnboarding(m: ChatModel) {
   }
   
   val feature = FeatureOnboardingData(
-    title = "Physical Passkey security",
+    title = "Physical YubiKey (PIV) security",
     description = "Utilizes hardware-based authentication keys stored physically, safeguarding against phone hacking, and ensuring secure access without relying on vulnerable software.",
     currentStep = 3,
     nextStage = OnboardingStage.Step2_4_ChooseUnlockMethod,

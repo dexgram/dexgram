@@ -288,7 +288,7 @@ fun ValidateWithYubiKeyPUKScreen(
               size = 48.dp
             )
           } else {
-            // Passkey icon - Shredgram: 92dp
+            // YubiKey icon - Shredgram: 92dp
             Icon(
               painter = painterResource(MR.images.ic_passkey),
               contentDescription = stringResource(MR.strings.yubikey_cd_yubikey),

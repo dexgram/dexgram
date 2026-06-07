@@ -2893,7 +2893,7 @@
   <string name="shredgram_passphrase_enter_subtitle">Enter your passphrase to unlock</string>
   <string name="shredgram_passphrase_placeholder">Passphrase</string>
   <string name="shredgram_terms_agreement">By continuing, you agree to the Terms and Privacy Policy</string>
-  <string name="shredgram_nfc_passkey_title">Use NFC Passkey</string>
+  <string name="shredgram_nfc_passkey_title">Use NFC YubiKey (PIV)</string>
   <string name="shredgram_nfc_passkey_fallback_description">Also use a hardware security key as a backup unlock method.</string>
   <string name="shredgram_choose_unlock_title">Choose how to unlock</string>
   <string name="shredgram_choose_unlock_description">Select your preferred method to secure and unlock your data.</string>
@@ -2919,8 +2919,8 @@
   <string name="yubikey_cd_warning">Warning</string>
 
   <!-- SetupYubiKey -->
-  <string name="yubikey_setup_title">Set up your passkey</string>
-  <string name="yubikey_setup_description">Keep your device secure! Use a NFC passkey for added security.</string>
+  <string name="yubikey_setup_title">Set up your YubiKey (PIV)</string>
+  <string name="yubikey_setup_description">Keep your device secure! Use an NFC YubiKey (PIV) for added security.</string>
   <string name="yubikey_setup_pin_card_title">Set up your PIN</string>
   <string name="yubikey_setup_pin_card_description">Use a custom 6 to 8 digit PIN specific to this app to unlock Shredgram.</string>
   <string name="yubikey_setup_puk_card_title">Set up your PUK</string>
@@ -2930,12 +2930,12 @@
   <string name="yubikey_reset_to_factory_link">Reset YubiKey to factory defaults</string>
 
   <!-- SetupYubiKeyPIN -->
-  <string name="yubikey_pin_enter_title">Set passkey PIN</string>
-  <string name="yubikey_pin_confirm_title">Confirm passkey PIN</string>
-  <string name="yubikey_pin_enter_reason">Choose a 6 to 8 digit PIN for your passkey.</string>
-  <string name="yubikey_pin_store_title">Store passkey PIN</string>
+  <string name="yubikey_pin_enter_title">Set YubiKey PIN</string>
+  <string name="yubikey_pin_confirm_title">Confirm YubiKey PIN</string>
+  <string name="yubikey_pin_enter_reason">Choose a 6 to 8 digit PIN for your YubiKey.</string>
+  <string name="yubikey_pin_store_title">Store YubiKey PIN</string>
   <string name="yubikey_pin_success_message">PIN created</string>
-  <string name="yubikey_pin_tap_instruction">Tap your passkey to set the PIN</string>
+  <string name="yubikey_pin_tap_instruction">Tap your YubiKey to set the PIN</string>
   <string name="yubikey_status_configuring">Configuring YubiKey…</string>
   <string name="yubikey_error_setup_failed">Setup failed</string>
   <string name="yubikey_error_connection_lost">Connection lost</string>
@@ -2944,12 +2944,12 @@
   <string name="yubikey_error_reset_failed">Reset failed: %s</string>
 
   <!-- SetupYubiKeyPUK -->
-  <string name="yubikey_puk_enter_title">Set passkey PUK</string>
-  <string name="yubikey_puk_confirm_title">Confirm passkey PUK</string>
-  <string name="yubikey_puk_enter_reason">Choose a 6 to 8 digit PUK for your passkey. This code unlocks your security key if the PIN is ever lost.</string>
-  <string name="yubikey_puk_store_title">Store passkey PUK</string>
+  <string name="yubikey_puk_enter_title">Set YubiKey PUK</string>
+  <string name="yubikey_puk_confirm_title">Confirm YubiKey PUK</string>
+  <string name="yubikey_puk_enter_reason">Choose a 6 to 8 digit PUK for your YubiKey. This code unlocks your security key if the PIN is ever lost.</string>
+  <string name="yubikey_puk_store_title">Store YubiKey PUK</string>
   <string name="yubikey_puk_success_message">PUK created</string>
-  <string name="yubikey_puk_tap_instruction">Tap your passkey to set the PUK</string>
+  <string name="yubikey_puk_tap_instruction">Tap your YubiKey to set the PUK</string>
 
   <!-- SetupYubiKeyManagementKey -->
   <string name="yubikey_mgmt_enter_pin_title">Enter your PIN</string>
@@ -2958,7 +2958,7 @@
   <string name="yubikey_mgmt_hide_key">Hide key</string>
   <string name="yubikey_mgmt_show_key">Show key</string>
   <string name="yubikey_mgmt_success_message">Management key generated</string>
-  <string name="yubikey_mgmt_tap_instruction">Tap your passkey to store the management key</string>
+  <string name="yubikey_mgmt_tap_instruction">Tap your YubiKey to store the management key</string>
   <string name="yubikey_error_pin_not_found_reenter">PIN not found. Please re-enter your PIN above.</string>
   <string name="yubikey_btn_clear_app_data">Clear App Data &amp; Start Fresh</string>
   <string name="yubikey_separator_or">OR</string>
@@ -2969,8 +2969,8 @@
   <string name="yubikey_encrypt_enter_pin_title">Enter your PIN</string>
   <string name="yubikey_encrypt_enter_pin_reason">Enter the PIN you set up earlier to encrypt your database.</string>
   <string name="yubikey_encrypt_title">Encrypt database</string>
-  <string name="yubikey_encrypt_description">Ensure you keep your passkey safe. Without it, you won\'t be able to access your encrypted data if needed.</string>
-  <string name="yubikey_encrypt_tap_instruction">Insert or tap your physical passkey</string>
+  <string name="yubikey_encrypt_description">Ensure you keep your YubiKey safe. Without it, you won\'t be able to access your encrypted data if needed.</string>
+  <string name="yubikey_encrypt_tap_instruction">Insert or tap your YubiKey</string>
   <string name="yubikey_error_pin_not_found_setup">PIN not found. Please go back and set up PIN first.</string>
   <string name="yubikey_encrypt_retrying">Retrying… Keep YubiKey steady (Attempt %1$d/%2$d)</string>
   <string name="yubikey_error_db_encryption_failed">Database encryption failed. Please try again.</string>
@@ -2986,10 +2986,10 @@
 
   <!-- ChooseUnlockMethod -->
   <string name="yubikey_choose_unlock_title">Choose how you unlock</string>
-  <string name="yubikey_choose_unlock_description">Keep your device secure! Choose a strong passphrase for your encryption key, or use an NFC passkey for added security.</string>
+  <string name="yubikey_choose_unlock_description">Keep your device secure! Choose a strong passphrase for your encryption key, or use an NFC YubiKey (PIV) for added security.</string>
   <string name="yubikey_option_passphrase_title">Use a passphrase</string>
   <string name="yubikey_option_passphrase_description">Unlock with a strong passphrase.</string>
-  <string name="yubikey_option_nfc_title">Use NFC passkey</string>
+  <string name="yubikey_option_nfc_title">Use NFC YubiKey (PIV)</string>
   <string name="yubikey_option_nfc_description">Unlock by tapping your hardware key.</string>
 
   <!-- YubiKeyFactoryReset -->
@@ -3518,7 +3518,7 @@
   <string name="shredgram_choose_unlock_subtitle">Select your preferred method to secure and unlock your data.</string>
   <string name="shredgram_option_passphrase">Use passphrase</string>
   <string name="shredgram_option_passphrase_desc">Use a strong passphrase to encrypt and decrypt your data.</string>
-  <string name="shredgram_option_nfc_passkey">Use NFC Passkey</string>
+  <string name="shredgram_option_nfc_passkey">Use NFC YubiKey (PIV)</string>
   <string name="shredgram_option_nfc_passkey_desc">Use a hardware security key (like YubiKey) for enhanced security.</string>
   <string name="shredgram_passphrase_terms_text">By continuing, you agree to the Terms and Privacy Policy</string>
   <string name="shredgram_passphrase_mismatch_error">Passphrases do not match</string>
@@ -3549,7 +3549,7 @@
   <string name="yubikey_encrypt_timed_out">Operation timed out. Please try again.</string>
   <string name="yubikey_encrypt_enrollment_failed">Enrollment failed. Please try again.</string>
   <string name="yubikey_encrypt_cd_encrypt">Encrypt</string>
-  <string name="yubikey_encrypt_tap_passkey">Insert or tap your physical passkey</string>
+  <string name="yubikey_encrypt_tap_passkey">Insert or tap your YubiKey</string>
   <string name="yubikey_encrypt_failed_title">Encryption Failed</string>
   <string name="yubikey_encrypt_tap_to_dismiss">Tap to dismiss and try again</string>
   <string name="yubikey_encrypt_success">Database encrypted successfully</string>
@@ -3574,13 +3574,13 @@
   <string name="switch_to_passphrase_failed">Failed to switch to passphrase encryption</string>
   <string name="switch_to_passphrase_mismatch">Passphrases do not match</string>
   <string name="yubikey_mgmt_cd_key">Management Key</string>
-  <string name="yubikey_mgmt_description">A management key was generated on this device. Tap your passkey to store it on your YubiKey.</string>
+  <string name="yubikey_mgmt_description">A management key was generated on this device. Tap your YubiKey to store it.</string>
   <string name="yubikey_mgmt_cd_hide_key">Hide key</string>
   <string name="yubikey_mgmt_cd_show_key">Show key</string>
   <string name="yubikey_mgmt_setup_failed">Setup failed</string>
   <string name="yubikey_mgmt_key_generated">Management key generated</string>
   <string name="yubikey_mgmt_configuring">Configuring YubiKey…</string>
-  <string name="yubikey_mgmt_tap_to_store">Tap your passkey to store the management key</string>
+  <string name="yubikey_mgmt_tap_to_store">Tap your YubiKey to store the management key</string>
   <string name="yubikey_mgmt_btn_clear_data">Clear App Data &amp; Start Fresh</string>
   <string name="yubikey_mgmt_or">OR</string>
   <string name="yubikey_mgmt_reset_failed">Reset failed</string>
@@ -3589,8 +3589,8 @@
   <string name="yubikey_mgmt_btn_try_again">Try Again</string>
   <string name="yubikey_mgmt_pin_not_found">PIN not found. Please re-enter your PIN above.</string>
   <string name="yubikey_mgmt_unknown_error">Unknown error</string>
-  <string name="yubikey_pin_setup_title">Set passkey PIN</string>
-  <string name="yubikey_pin_reason">Choose a 6 to 8 digit PIN for your passkey.</string>
+  <string name="yubikey_pin_setup_title">Set YubiKey PIN</string>
+  <string name="yubikey_pin_reason">Choose a 6 to 8 digit PIN for your YubiKey.</string>
   <string name="yubikey_pin_btn_confirm">Confirm</string>
   <string name="yubikey_pin_created">PIN created</string>
   <string name="yubikey_pin_connection_lost">Connection lost</string>
@@ -3599,20 +3599,20 @@
   <string name="yubikey_pin_cd_lock">Lock</string>
   <string name="yubikey_pin_setup_failed">Setup failed</string>
   <string name="yubikey_pin_configuring">Configuring YubiKey…</string>
-  <string name="yubikey_pin_tap_to_set">Tap your passkey to set the PIN</string>
+  <string name="yubikey_pin_tap_to_set">Tap your YubiKey to set the PIN</string>
   <string name="yubikey_pin_reset_successful">Reset successful! Please tap your YubiKey again.</string>
   <string name="yubikey_pin_reset_failed">Reset failed</string>
   <string name="yubikey_pin_btn_reset">Reset YubiKey</string>
   <string name="yubikey_pin_btn_try_again">Try Again</string>
-  <string name="yubikey_puk_setup_title">Set passkey PUK</string>
-  <string name="yubikey_puk_reason">Choose a 6 to 8 digit PUK for your passkey. This code unlocks your security key if the PIN is ever lost.</string>
+  <string name="yubikey_puk_setup_title">Set YubiKey PUK</string>
+  <string name="yubikey_puk_reason">Choose a 6 to 8 digit PUK for your YubiKey. This code unlocks your security key if the PIN is ever lost.</string>
   <string name="yubikey_puk_btn_confirm">Confirm</string>
   <string name="yubikey_puk_unknown_error">Unknown error</string>
   <string name="yubikey_puk_cd_puk">PUK</string>
   <string name="yubikey_puk_setup_failed">Setup failed</string>
   <string name="yubikey_puk_created">PUK created</string>
   <string name="yubikey_puk_configuring">Configuring YubiKey…</string>
-  <string name="yubikey_puk_tap_to_set">Tap your passkey to set the PUK</string>
+  <string name="yubikey_puk_tap_to_set">Tap your YubiKey to set the PUK</string>
   <string name="yubikey_puk_btn_try_again">Try Again</string>
   <string name="yubikey_factory_reset_resetting">Resetting YubiKey…</string>
   <string name="yubikey_factory_reset_unknown_error">Unknown error</string>

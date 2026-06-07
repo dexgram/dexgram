@@ -461,7 +461,7 @@ private fun SetupDatabasePassphraseLayout(
         
       // NFC Option Card - Shredgram OptionCard style
       ShredgramOptionCardPassphrase(
-        title = "Use NFC passkey",
+        title = "Use NFC YubiKey (PIV)",
         description = "Unlock by tapping your hardware key.",
         selected = useNFC.value,
           onClick = {
@@ -469,7 +469,7 @@ private fun SetupDatabasePassphraseLayout(
             if (useNFC.value) {
               AlertManager.shared.showAlertMsg(
                 title = generalGetString(MR.strings.coming_soon),
-                text = "NFC passkey support is coming soon!"
+                text = "NFC YubiKey (PIV) support is coming soon!"
               )
               useNFC.value = false
             }
@@ -504,7 +504,7 @@ private fun SetupDatabasePassphraseLayout(
           if (useNFC.value) {
             AlertManager.shared.showAlertMsg(
               title = generalGetString(MR.strings.coming_soon),
-              text = "NFC passkey support is coming soon!"
+              text = "NFC YubiKey (PIV) support is coming soon!"
             )
           } else {
             onClickUpdate()
@@ -1037,7 +1037,7 @@ fun NFCOptionCard(
         // Icon on the left
         Icon(
           painter = painterResource(MR.images.ic_key_lock),
-          contentDescription = "Use NFC passkey",
+          contentDescription = "Use NFC YubiKey (PIV)",
           modifier = Modifier.size(28.dp),
           tint = if (isSelected) MaterialTheme.colors.primary else MaterialTheme.colors.onBackground
         )
@@ -1046,7 +1046,7 @@ fun NFCOptionCard(
         
         // Title - flexible width
         Text(
-          text = "Use NFC passkey",
+          text = "Use NFC YubiKey (PIV)",
           fontSize = 16.sp,
           fontWeight = FontWeight.SemiBold,
           color = MaterialTheme.colors.onBackground,
