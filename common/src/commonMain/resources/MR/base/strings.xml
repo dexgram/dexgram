@@ -2906,12 +2906,12 @@
   <!-- ═══════════════════════════════════════════════════════════ -->
 
   <string name="yubikey_cd_back">Back</string>
-  <string name="yubikey_cd_logo">Shredgram Logo</string>
+  <string name="yubikey_cd_logo">Dexgram Logo</string>
   <string name="yubikey_cd_lock">Lock</string>
   <string name="yubikey_cd_error">Error</string>
   <string name="yubikey_cd_success">Success</string>
   <string name="yubikey_cd_yubikey">YubiKey</string>
-  <string name="yubikey_cd_shredgram">Shredgram</string>
+  <string name="yubikey_cd_shredgram">Dexgram</string>
   <string name="yubikey_cd_puk">PUK</string>
   <string name="yubikey_cd_mgmt_key">Management Key</string>
   <string name="yubikey_cd_encrypt">Encrypt</string>
@@ -2922,7 +2922,7 @@
   <string name="yubikey_setup_title">Set up your YubiKey (PIV)</string>
   <string name="yubikey_setup_description">Keep your device secure! Use an NFC YubiKey (PIV) for added security.</string>
   <string name="yubikey_setup_pin_card_title">Set up your PIN</string>
-  <string name="yubikey_setup_pin_card_description">Use a custom 6 to 8 digit PIN specific to this app to unlock Shredgram.</string>
+  <string name="yubikey_setup_pin_card_description">Use a custom 6 to 8 digit PIN specific to this app to unlock Dexgram.</string>
   <string name="yubikey_setup_puk_card_title">Set up your PUK</string>
   <string name="yubikey_setup_puk_card_description">This code unlocks your security key if the PIN is lost. Keep it secure.</string>
   <string name="yubikey_setup_mgmt_card_title">Management key</string>

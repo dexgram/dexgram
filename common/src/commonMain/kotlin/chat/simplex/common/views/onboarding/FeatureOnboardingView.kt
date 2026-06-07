@@ -137,7 +137,7 @@ fun OnboardingPager(m: ChatModel) {
         // Logo - natural size like Shredgram (no explicit size)
         Image(
           painter = painterResource(MR.images.ic_logo),
-          contentDescription = "Shredgram Logo"
+          contentDescription = "Dexgram Logo"
         )
         
         Spacer(Modifier.width(8.dp))  // Shredgram: space8DP
@@ -342,14 +342,14 @@ fun FeatureOnboardingView(
         // Logo - natural size like Shredgram (no explicit size)
         Image(
           painter = painterResource(MR.images.ic_logo),
-          contentDescription = "Shredgram Logo"
+          contentDescription = "Dexgram Logo"
         )
         
         Spacer(Modifier.width(8.dp))  // Shredgram: space8DP
         
         // Text - Shredgram: titleMedium (Manrope Bold 18sp, lineHeight 1.4)
         Text(
-          text = "Shredgram",
+          text = "Dexgram",
           fontFamily = Manrope,
           fontSize = 18.sp,
           fontWeight = FontWeight.Bold,

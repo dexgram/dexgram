@@ -257,7 +257,6 @@ private fun SetupDatabasePassphraseLayout(
   onConfirmEncrypt: () -> Unit,
   nextStep: () -> Unit,
 ) {
-  val useNFC = remember { mutableStateOf(false) }
   val showNewPassword = remember { mutableStateOf(false) }
   val showConfirmPassword = remember { mutableStateOf(false) }
   
@@ -362,7 +361,7 @@ private fun SetupDatabasePassphraseLayout(
         Row(verticalAlignment = Alignment.CenterVertically) {
           Image(
             painter = painterResource(MR.images.ic_logo),
-            contentDescription = "Shredgram Logo"
+            contentDescription = "Dexgram Logo"
             // No explicit size - use natural drawable size like Shredgram
           )
           
@@ -463,16 +462,9 @@ private fun SetupDatabasePassphraseLayout(
       ShredgramOptionCardPassphrase(
         title = "Use NFC YubiKey (PIV)",
         description = "Unlock by tapping your hardware key.",
-        selected = useNFC.value,
-          onClick = {
-            useNFC.value = !useNFC.value
-            if (useNFC.value) {
-              AlertManager.shared.showAlertMsg(
-                title = generalGetString(MR.strings.coming_soon),
-                text = "NFC YubiKey (PIV) support is coming soon!"
-              )
-              useNFC.value = false
-            }
+        selected = false,
+        onClick = {
+          chatModel.controller.appPrefs.onboardingStage.set(OnboardingStage.Step2_4_5_SetupYubiKey)
         },
         icon = {
           // Shredgram: no explicit tint (uses LocalContentColor which is onSurface)
@@ -501,14 +493,7 @@ private fun SetupDatabasePassphraseLayout(
           // Hide keyboard first
           focusManager.clearFocus()
           
-          if (useNFC.value) {
-            AlertManager.shared.showAlertMsg(
-              title = generalGetString(MR.strings.coming_soon),
-              text = "NFC YubiKey (PIV) support is coming soon!"
-            )
-          } else {
-            onClickUpdate()
-          }
+          onClickUpdate()
         },
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(360.dp),  // RadiusPill
@@ -518,7 +503,7 @@ private fun SetupDatabasePassphraseLayout(
           disabledBackgroundColor = BorderElevated1,
           disabledContentColor = DarkCharcoal400
         ),
-        enabled = !disabled || useNFC.value,
+        enabled = !disabled,
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
         elevation = ButtonDefaults.elevation(
           defaultElevation = 0.dp,

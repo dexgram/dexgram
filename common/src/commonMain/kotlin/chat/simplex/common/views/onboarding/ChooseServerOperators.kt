@@ -107,7 +107,7 @@ fun ModalData.OnboardingConditionsView() {
             // Center: Text logo - Shredgram titleMedium (18sp Bold)
             Image(
               painter = painterResource(MR.images.ic_logo),
-              contentDescription = "Shredgram"
+              contentDescription = "Dexgram"
             )
             
             // Spacer for symmetry - 48dp
