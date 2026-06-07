@@ -16,7 +16,7 @@ import chat.simplex.common.ui.shredgram.components.*
 import chat.simplex.common.ui.shredgram.theme.*
 
 /**
- * Screen for choosing the unlock method (passphrase or NFC passkey)
+ * Screen for choosing the unlock method (passphrase or NFC YubiKey PIV)
  * 
  * @param onMethodSelected Callback when a method is selected and user proceeds
  * @param onBack Callback for back navigation

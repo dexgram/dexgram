@@ -257,7 +257,6 @@ private fun SetupDatabasePassphraseLayout(
   onConfirmEncrypt: () -> Unit,
   nextStep: () -> Unit,
 ) {
-  val useNFC = remember { mutableStateOf(false) }
   val showNewPassword = remember { mutableStateOf(false) }
   val showConfirmPassword = remember { mutableStateOf(false) }
   
@@ -362,7 +361,7 @@ private fun SetupDatabasePassphraseLayout(
         Row(verticalAlignment = Alignment.CenterVertically) {
           Image(
             painter = painterResource(MR.images.ic_logo),
-            contentDescription = "Shredgram Logo"
+            contentDescription = "Dexgram Logo"
             // No explicit size - use natural drawable size like Shredgram
           )
           
@@ -461,18 +460,11 @@ private fun SetupDatabasePassphraseLayout(
         
       // NFC Option Card - Shredgram OptionCard style
       ShredgramOptionCardPassphrase(
-        title = "Use NFC passkey",
+        title = "Use NFC YubiKey (PIV)",
         description = "Unlock by tapping your hardware key.",
-        selected = useNFC.value,
-          onClick = {
-            useNFC.value = !useNFC.value
-            if (useNFC.value) {
-              AlertManager.shared.showAlertMsg(
-                title = generalGetString(MR.strings.coming_soon),
-                text = "NFC passkey support is coming soon!"
-              )
-              useNFC.value = false
-            }
+        selected = false,
+        onClick = {
+          chatModel.controller.appPrefs.onboardingStage.set(OnboardingStage.Step2_4_5_SetupYubiKey)
         },
         icon = {
           // Shredgram: no explicit tint (uses LocalContentColor which is onSurface)
@@ -501,14 +493,7 @@ private fun SetupDatabasePassphraseLayout(
           // Hide keyboard first
           focusManager.clearFocus()
           
-          if (useNFC.value) {
-            AlertManager.shared.showAlertMsg(
-              title = generalGetString(MR.strings.coming_soon),
-              text = "NFC passkey support is coming soon!"
-            )
-          } else {
-            onClickUpdate()
-          }
+          onClickUpdate()
         },
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(360.dp),  // RadiusPill
@@ -518,7 +503,7 @@ private fun SetupDatabasePassphraseLayout(
           disabledBackgroundColor = BorderElevated1,
           disabledContentColor = DarkCharcoal400
         ),
-        enabled = !disabled || useNFC.value,
+        enabled = !disabled,
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
         elevation = ButtonDefaults.elevation(
           defaultElevation = 0.dp,
@@ -1037,7 +1022,7 @@ fun NFCOptionCard(
         // Icon on the left
         Icon(
           painter = painterResource(MR.images.ic_key_lock),
-          contentDescription = "Use NFC passkey",
+          contentDescription = "Use NFC YubiKey (PIV)",
           modifier = Modifier.size(28.dp),
           tint = if (isSelected) MaterialTheme.colors.primary else MaterialTheme.colors.onBackground
         )
@@ -1046,7 +1031,7 @@ fun NFCOptionCard(
         
         // Title - flexible width
         Text(
-          text = "Use NFC passkey",
+          text = "Use NFC YubiKey (PIV)",
           fontSize = 16.sp,
           fontWeight = FontWeight.SemiBold,
           color = MaterialTheme.colors.onBackground,

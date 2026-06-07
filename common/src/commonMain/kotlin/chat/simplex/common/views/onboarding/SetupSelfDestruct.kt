@@ -95,7 +95,7 @@ private fun SetupSelfDestructExplanation(
       Row(verticalAlignment = Alignment.CenterVertically) {
       Image(
           painter = painterResource(MR.images.ic_logo),
-          contentDescription = "Shredgram Logo"
+          contentDescription = "Dexgram Logo"
           // No explicit size - use natural drawable size like Shredgram
         )
         

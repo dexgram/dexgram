@@ -414,7 +414,7 @@ fun EncryptDatabaseWithYubiKey(m: ChatModel) {
           Column(
             horizontalAlignment = Alignment.CenterHorizontally
           ) {
-            // Passkey icon - Shredgram: 92dp
+            // YubiKey icon - Shredgram: 92dp
             Icon(
               painter = painterResource(MR.images.ic_passkey),
               contentDescription = stringResource(MR.strings.yubikey_cd_yubikey),
