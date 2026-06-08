@@ -182,9 +182,9 @@ Recommended workflow:
 
 These are the next areas of work for DEXGRAM:
 
-- Improve **Vault** and synchronization.
+- ~~Improve **Vault** and synchronization.~~
 - ~~Publish the **Vault server source code**~~: https://github.com/dexgram/public-staging-dexgram-vault-api
-- Work on the **Android VPN** as a separate project.
+- ~~Work on the **Android VPN** as a separate project.~~: https://github.com/dexgram/vpn-android-asset
 - Improve **voice scrambling**.
 - Work on the **iOS version**.
 - Work on the **Desktop version** later.
