@@ -105,6 +105,18 @@ workflows:
           test -s "$LIBS_DIR/armeabi-v7a/libsimplex.so"
           test -s "$LIBS_DIR/armeabi-v7a/libsupport.so"
 
+          cat > "$LIBS_DIR/SHA256SUMS" <<'EOF'
+          dbd3d3fd90e251c7088e4db9d651342a8ad8b55f6b18961794632421a9da2e8a  arm64-v8a/libsimplex.so
+          9a9c22d02632b34a3dc2663431ab75d8fe439d4556fb9e438bea88e1ea9cd49f  arm64-v8a/libsupport.so
+          532013fc3f16f06b3fadc69bd0a214ca225cee43b09609d561dc63376a2163ce  armeabi-v7a/libsimplex.so
+          e8d3489fec86fb4074a23b711c9dfe61aacdab8bcf9755a33cb317d2beb20b57  armeabi-v7a/libsupport.so
+          EOF
+
+          (
+            cd "$LIBS_DIR"
+            sha256sum -c SHA256SUMS
+          )
+
           ls -lh "$LIBS_DIR/arm64-v8a" "$LIBS_DIR/armeabi-v7a"
 
       - name: Set Android version from Git tag
@@ -165,9 +177,34 @@ workflows:
         script: |
           set -e
 
+          VERSION_NAME="$(sed -n 's/^android\.version_name=//p' gradle.properties)"
+          SAFE_VERSION_NAME="$(printf '%s' "$VERSION_NAME" | tr '.' '-' | sed 's/[^A-Za-z0-9_-]/-/g')"
+
           mkdir -p build/codemagic-artifacts
-          find android/build/outputs/apk/release -name "*.apk" -exec cp {} build/codemagic-artifacts/ \;
-          find android/build/outputs/bundle/release -name "*.aab" -exec cp {} build/codemagic-artifacts/ \;
+
+          APK_FOUND=0
+          for apk in android/build/outputs/apk/release/*.apk; do
+            [ -e "$apk" ] || continue
+
+            case "$apk" in
+              *arm64-v8a*) ABI="arm64-v8a" ;;
+              *armeabi-v7a*) ABI="armeabi-v7a" ;;
+              *) ABI="universal" ;;
+            esac
+
+            cp "$apk" "build/codemagic-artifacts/dexgram-v${SAFE_VERSION_NAME}-${ABI}.apk"
+            APK_FOUND=1
+          done
+
+          AAB_FOUND=0
+          for aab in android/build/outputs/bundle/release/*.aab; do
+            [ -e "$aab" ] || continue
+            cp "$aab" "build/codemagic-artifacts/dexgram-v${SAFE_VERSION_NAME}.aab"
+            AAB_FOUND=1
+          done
+
+          [ "$APK_FOUND" -eq 1 ]
+          [ "$AAB_FOUND" -eq 1 ]
 
           ls -la build/codemagic-artifacts
 
